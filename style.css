@@ -174,7 +174,7 @@ h1, h2, h3, p, ul { margin: 0; padding: 0; }
 .result.good { --kind: #13a35a; background: radial-gradient(120% 70% at 50% 30%, #5ce69a, #17b765 60%, #0e8a4b); }
 .result.meh { --kind: #c97a00; background: radial-gradient(120% 70% at 50% 30%, #ffd86b, #f5a400 60%, #c97a00); }
 .result.bad { --kind: #c92a1f; background: radial-gradient(120% 70% at 50% 30%, #ff8a7a, #e8432f 60%, #a82618); }
-.ticket { position: relative; margin-top: 26px; padding: 0 18px 18px; background: #fffaf0; color: var(--ink); border: 4px solid var(--ink); border-radius: 16px; box-shadow: 0 8px 0 rgba(0, 0, 0, 0.22); text-align: center; transform: rotate(-1deg); }
+.ticket { position: relative; margin-top: auto; padding: 0 18px 18px; background: #fffaf0; color: var(--ink); border: 4px solid var(--ink); border-radius: 16px; box-shadow: 0 8px 0 rgba(0, 0, 0, 0.22); text-align: center; transform: rotate(-1deg); }
 .ticket-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 12px 0 10px; border-bottom: 3px dashed rgba(20, 24, 58, 0.25); font-family: var(--disp); font-size: 18px; text-align: left; }
 .ticket-head small { flex: none; font: 900 11px var(--font); opacity: 0.55; }
 .stamp { position: absolute; top: 50px; right: -12px; padding: 3px 10px 2px; border: 4px solid var(--kind); border-radius: 10px; background: rgba(255, 255, 255, 0.85); color: var(--kind); font-family: var(--disp); font-size: 25px; transform: rotate(13deg); animation: stamp 0.45s cubic-bezier(.2, 1.6, .5, 1) 0.15s backwards; }
