@@ -93,7 +93,8 @@ h1, h2, h3, p { margin: 0; }
 .vehicle { font-size: 24px; text-anchor: middle; }
 
 /* ---------- station ---------- */
-.station { background: linear-gradient(var(--yel) 0 120px, var(--paper) 120px); gap: 10px; }
+.station { background: var(--paper); gap: 10px; padding-top: 0; }
+.band { background: var(--yel); border-bottom: 3px solid var(--ink); margin: 0 -16px; padding: calc(12px + env(safe-area-inset-top)) 16px 8px; display: flex; flex-direction: column; gap: 6px; }
 .hud { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .hud .clock { font-family: var(--disp); font-size: 36px; line-height: 1; }
 .goal { background: var(--ink); color: var(--white); border-radius: 12px; padding: 4px 10px; font-size: 12px; text-align: right; line-height: 1.1; }
@@ -131,6 +132,7 @@ h1, h2, h3, p { margin: 0; }
 .shop h3 { font-family: var(--disp); font-weight: 400; font-size: 20px; margin-bottom: 8px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
 .tile { background: var(--paper); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 4px 0 var(--ink); padding: 8px 6px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; line-height: 1.2; }
+.tile small { font-size: 10.5px; opacity: 0.7; }
 .tile .ico { font-size: 30px; }
 .tile .price { margin: 0; font-size: 16px; padding: 1px 8px; }
 .tile:disabled { opacity: 0.45; }

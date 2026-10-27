@@ -187,9 +187,9 @@ export function stationScreen(run, ns) {
   const overlay = ns.map ? sheet(`<h2 class="title">Dein Netz</h2><div class="mapbox">${mapSvg(run)}</div><button class="btn y" data-act="close-sheet">OK</button>`)
     : ns.eventResult || eventPending(run) ? eventSheet(run, ns) : '';
   return `<section class="screen station">
-    <div class="hud"><span class="clock">${clock(run.clock)}</span><span class="chip"><i>€</i>${run.money}</span>
+    <div class="band"><div class="hud"><span class="clock">${clock(run.clock)}</span><span class="chip"><i>€</i>${run.money}</span>
       <span class="goal">🎯 ${left >= 0 ? `noch ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${-left} Min drüber`}<b class="${left < 0 ? 'late' : ''}">${clock(run.termin)}</b></span></div>
-    ${strip(run)}
+    ${strip(run)}</div>
     <div class="where"><h2 class="city">${esc(run.net.nodes[run.at].city)}</h2><span class="items">${items}</span></div>
     ${ns.notice ? `<div class="toast ${ns.notice.kind || ''}">${ns.notice.html}</div>` : ''}
     ${nodeCard(run)}
