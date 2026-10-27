@@ -51,7 +51,7 @@ function go(screen) { app.screen = screen; app.share = ''; render(); }
 function clearChallenge() {
   if (!compareTo(app.run)) return;
   app.challenge = null;
-  history.replaceState(null, '', location.pathname);
+  try { history.replaceState(null, '', location.pathname); } catch { /* sandboxed embed */ }
 }
 
 const compareTo = run => (app.challenge && run && (run.mode === 'challenge' || run.mode === 'daily') && app.challenge.day === run.day ? app.challenge : null);
