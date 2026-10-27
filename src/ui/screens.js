@@ -44,7 +44,7 @@ export function menuScreen({ progress, day, challenge, soundOn }) {
     ${ch}${daily}
     <button class="card cta" data-act="setup"><div class="row"><b>Freie Reise</b><span>›</span></div><div class="sub">Figur, Region und Störungsstufe wählen.</div></button>
     <button class="card cta" data-act="progress"><div class="row"><b>Fortschritt</b><span>›</span></div>${ladderBar(progress)}</button>
-    <footer class="fine">Eine Fahrt mit der ${TEXT.railName}. Ähnlichkeiten mit echten Bahnen sind rein zufällig.</footer>
+    <footer class="fine">Ein Spiel über die ${TEXT.railName}. Ähnlichkeiten mit echten Bahnen sind rein zufällig.</footer>
   </section>`;
 }
 

@@ -78,3 +78,14 @@ test('the timetable has a planned arrival after the start and a buffer for the a
 test('generation never fails, also for unusual seeds', () => {
   for (const region of ['nord', 'de']) for (let s = 0; s < 3000; s++) generateNetwork(s * 7919 + 13, region);
 });
+
+test('every station except the goal offers at least two lines to choose from', () => {
+  for (const region of ['nord', 'de']) for (const seed of SEEDS) {
+    const net = generateNetwork(seed, region);
+    for (const id of Object.keys(net.nodes)) {
+      if (id === net.goalId) continue;
+      const lines = net.edges.filter(e => e.from === id).reduce((n, e) => n + e.lines.length, 0);
+      assert.ok(lines >= 2, `${region} seed ${seed} ${net.nodes[id].city}`);
+    }
+  }
+});

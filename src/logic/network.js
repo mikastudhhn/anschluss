@@ -103,7 +103,9 @@ function build(rng, cityLayers, seed, regionId) {
     pairs.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
     for (const [a, b] of pairs) {
       const from = A[a], to = B[b], km = cityKm(nodes[from].city, nodes[to].city);
-      const types = km >= 60 && rng.chance(0.6) ? ['ICB', 'RE'] : ['RE'];
+      // a station with a single connection still gets a fast and a cheap line, so there is always a choice
+      const single = pairs.filter(([x]) => x === a).length === 1;
+      const types = rng.chance(0.6) && km >= 60 || single ? ['ICB', 'RE'] : ['RE'];
       edges.push({
         id: `e_${from}_${to}`, from, to, km,
         lines: types.map(type => {
