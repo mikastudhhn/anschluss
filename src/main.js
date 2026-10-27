@@ -1,14 +1,14 @@
 // Controller: screen flow, input, storage and the sprint loop.
 import { hashOf, dayNumber } from './logic/rng.js';
-import {
-  createRun, departures, sprintSpec, completeSprint, stroll, takeTaxi, buyItem, loungeJob, resolveEvent, result,
-} from './logic/run.js';
+import { createRun, departures, sprintSpec, completeSprint, takeTaxi, buyItem, loungeJob, resolveEvent, result } from './logic/run.js';
 import { createSprint, updateSprint, steer } from './logic/sprint.js';
-import { newProgress, parseProgress, unlocked, recordRun } from './logic/progress.js';
+import { newProgress, parseProgress, unlocked, recordRun, currentStreak } from './logic/progress.js';
 import { shareText, encodeChallenge, challengeFromHash, cleanName } from './logic/share.js';
-import { OCCASIONS, TAXI } from './logic/content.js';
-import { menuScreen, setupScreen, progressScreen, journeyScreen, stationScreen, rideScreen, resultScreen, clock } from './ui/screens.js';
-import { createSprintView } from './ui/sprintView.js';
+import { OCCASIONS, TAXI, MAX_STUFE } from './logic/content.js';
+import {
+  homeScreen, freeSheet, duelSheet, nameSheet, figurenScreen, planScreen, stationScreen, rideScreen, resultScreen, clock,
+} from './ui/screens.js';
+import { createSprintView, createRunnerPreview } from './ui/sprintView.js';
 import { nodePoint } from './ui/mapView.js';
 import { sfx, setSound, soundOn, unlock } from './ui/audio.js';
 
@@ -21,32 +21,56 @@ const stage = document.getElementById('stage');
 const canvas = document.getElementById('sprint');
 
 const app = {
-  progress: load(), screen: 'menu', run: null, ns: null, setup: { characterId: 'pendler', regionId: 'nord', stufe: 0 },
-  challenge: challengeFromHash(location.hash), sprint: null, view: null, opt: null, paused: false, outcome: null, share: '',
+  progress: load(), screen: 'home', sheet: null, sheetMsg: '', shareCtx: null, run: null, ns: null,
+  setup: { regionId: 'nord', stufe: 0 }, challenge: challengeFromHash(location.hash),
+  sprint: null, view: null, opt: null, paused: false, outcome: null,
 };
+if (!unlocked(app.progress).characters.includes(app.progress.character)) app.progress.character = 'pendler';
 setSound(app.progress.sound);
+document.fonts?.load('20px "Lilita One"');
+
+let daily = null;
+const dailyRun = day => createRun({ seed: hashOf('daily', day), mode: 'daily', day, regionId: 'de' });
+const todaysRun = () => { const day = dayNumber(); if (daily?.day !== day) daily = dailyRun(day); return daily; };
 
 // ---------- rendering ----------
+let heroRaf = 0;
 function render() {
   const keepScroll = ui.dataset.screen === app.screen ? ui.scrollTop : 0;
   const { progress, run } = app;
+  const day = dayNumber();
+  const sheets = {
+    free: () => freeSheet({ progress, setup: app.setup }),
+    duel: () => duelSheet({ progress, day }),
+    name: () => nameSheet(progress, 'TEILEN', app.sheetMsg),
+  };
+  const sheetHtml = app.sheet ? sheets[app.sheet]() : '';
   let html = '';
   switch (app.screen) {
-    case 'menu': html = menuScreen({ progress, day: dayNumber(), challenge: app.challenge, soundOn: soundOn() }); break;
-    case 'setup': html = setupScreen({ progress, setup: app.setup }); break;
-    case 'progress': html = progressScreen({ progress }); break;
-    case 'journey': html = journeyScreen(run); break;
+    case 'home': html = homeScreen({ progress, day, dailyRun: todaysRun(), challenge: app.challenge, soundOn: soundOn(), streak: currentStreak(progress, day), sheetHtml }); break;
+    case 'figuren': html = figurenScreen({ progress }); break;
+    case 'plan': html = planScreen(run); break;
     case 'station': html = stationScreen(run, app.ns); break;
-    case 'result': html = resultScreen({ run, ...app.outcome, challenge: compareTo(run), progress, share: app.share }); break;
+    case 'result': html = resultScreen({ run, ...app.outcome, challenge: compareTo(run), progress, sheetHtml }); break;
   }
   ui.innerHTML = html;
   ui.dataset.screen = app.screen;
   ui.scrollTop = keepScroll;
   ui.hidden = false;
   stage.hidden = true;
+  animateHero();
 }
 
-function go(screen) { app.screen = screen; app.share = ''; render(); }
+function animateHero() {
+  cancelAnimationFrame(heroRaf);
+  const hero = document.getElementById('hero');
+  if (!hero) return;
+  const draw = createRunnerPreview(hero, app.progress.character);
+  const tick = now => { draw(now / 1000); heroRaf = requestAnimationFrame(tick); };
+  heroRaf = requestAnimationFrame(tick);
+}
+
+function go(screen) { app.screen = screen; app.sheet = null; app.sheetMsg = ''; render(); }
 
 function clearChallenge() {
   if (!compareTo(app.run)) return;
@@ -57,14 +81,9 @@ function clearChallenge() {
 const compareTo = run => (app.challenge && run && (run.mode === 'challenge' || run.mode === 'daily') && app.challenge.day === run.day ? app.challenge : null);
 
 // ---------- journey flow ----------
-function startRun(opts) {
-  app.run = createRun({ perks: [], ...opts });
-  go('journey');
-}
-
 function arrive(notice) {
   if (app.run.done) return finishRun();
-  app.ns = { notice, sheet: null, eventResult: null, movedFrom: null };
+  app.ns = { notice, eventResult: null, movedFrom: null, map: false };
   go('station');
 }
 
@@ -77,7 +96,7 @@ function rideAnimation(fromId, emoji, notice) {
   stage.hidden = true;
   const veh = document.getElementById('veh');
   const [x1, y1] = nodePoint(run.net, fromId), [x2, y2] = nodePoint(run.net, run.at);
-  const t0 = performance.now(), dur = 1500, hold = 250;
+  const t0 = performance.now(), dur = 1300, hold = 200;
   let done = false;
   const finish = () => { if (!done) { done = true; ui.removeEventListener('pointerdown', finish); arrive(notice); } };
   ui.addEventListener('pointerdown', finish);
@@ -91,16 +110,17 @@ function rideAnimation(fromId, emoji, notice) {
   })(t0);
 }
 
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 function arrivalNotice(out) {
-  const run = app.run, city = run.net.nodes[run.at].city;
-  const parts = [`Ankunft ${city} ${clock(run.clock)}`];
+  if (out.caught) return { html: 'Kontrolle! Ohne Ticket erwischt. +30 Min.', kind: 'bad' };
+  const parts = [];
   let kind = 'good';
-  if (out.caught) { parts.push('Kontrolle! Ohne Ticket erwischt: +30 Min'); kind = 'bad'; }
-  if (out.arrivalDelay > 0) { parts.push(`+${out.arrivalDelay} Min Verspätung`); kind = out.arrivalDelay >= 10 ? 'bad' : 'meh'; }
-  else if (!out.caught) parts.push('pünktlich');
-  if (out.refund) parts.push(`Fahrgastrechte: ${out.refund} € zurück`);
-  if (out.dodged && !out.caught) parts.push('ohne Ticket durchgekommen');
-  return { html: parts.join(' · '), kind };
+  if (out.arrivalDelay >= 10) { parts.push(`+${out.arrivalDelay} Min Verspätung. ${pick(['Natürlich.', 'Wie immer.', 'Überraschung!'])}`); kind = 'bad'; }
+  else if (out.arrivalDelay > 0) { parts.push(`+${out.arrivalDelay} Min Verspätung.`); kind = 'meh'; }
+  else parts.push(pick(['Pünktlich! Wer hätte das gedacht.', 'Auf die Minute. Ein Wunder.', 'Pünktlich angekommen.']));
+  if (out.refund) parts.push(`Fahrgastrechte: +${out.refund} €`);
+  if (out.dodged) parts.push('Ohne Ticket durchgekommen.');
+  return { html: parts.join(' '), kind };
 }
 
 function board(fn, opt) {
@@ -125,10 +145,12 @@ let rafId = 0, last = 0;
 function startSprint(opt) {
   const run = app.run;
   app.opt = opt;
-  app.sprint = createSprint(sprintSpec(run, opt));
+  const tutorial = app.progress.runs === 0 && run.sprints < 2;
+  app.sprint = createSprint({ ...sprintSpec(run, opt), tutorial });
   app.view = createSprintView(canvas, run.characterId);
   app.paused = false;
   app.screen = 'sprint';
+  cancelAnimationFrame(heroRaf);
   ui.hidden = true;
   stage.hidden = false;
   app.view.start(app.sprint);
@@ -153,7 +175,7 @@ function endSprint(outcome) {
   if (outcome.made) return board(() => completeSprint(run, opt, outcome), opt);
   const before = run.clock;
   completeSprint(run, opt, outcome);
-  arrive({ html: `${opt.cancelled ? 'Bus' : 'Zug'} weg! ${run.clock - before} Min verloren.${outcome.money ? ` ♻ ${outcome.money} € Pfand eingesammelt.` : ''}`, kind: 'bad' });
+  arrive({ html: `${opt.cancelled ? 'Bus' : 'Zug'} weg. −${run.clock - before} Min.${outcome.money ? ` Immerhin ${outcome.money} € Pfand.` : ''}`, kind: 'bad' });
 }
 
 function sprintInput(dir) {
@@ -180,71 +202,73 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && app
 window.addEventListener('resize', () => app.view?.resize());
 
 // ---------- sharing ----------
-function shareLink(day, score, line) {
-  const token = encodeChallenge({ day, score, name: app.progress.name, line });
-  return `${location.origin}${location.pathname}#c=${token}`;
+function dailyContext() {
+  const run = app.screen === 'result' ? app.run : todaysRun();
+  const recorded = run.mode === 'daily' && app.progress.daily[run.day];
+  return { run, entry: recorded || app.outcome.res };
 }
 
-async function shareResult(day, entry, run) {
-  const nameInput = document.getElementById('name');
-  if (nameInput) { app.progress.name = cleanName(nameInput.value); save(app.progress); }
-  const net = run?.net;
-  const from = net ? net.nodes[net.startId].city : '';
-  const to = net ? net.nodes[net.goalId].city : '';
-  const occasion = net ? OCCASIONS[net.occasion].name : '';
-  const link = shareLink(day, entry.score, entry.line);
-  const text = shareText({ day, from, to, occasion, line: entry.line, score: entry.score, stars: entry.stars, link });
+async function share({ run, entry }) {
+  const net = run.net;
+  const link = `${location.origin}${location.pathname}#c=${encodeChallenge({ day: run.day, score: entry.score, name: app.progress.name, line: entry.line })}`;
+  const text = shareText({
+    day: run.day, from: net.nodes[net.startId].city, to: net.nodes[net.goalId].city, occasion: OCCASIONS[net.occasion].name,
+    line: entry.line, score: entry.score, stars: entry.stars, link,
+  });
   try {
-    if (navigator.share) { await navigator.share({ text }); app.share = 'Geteilt!'; }
-    else { await navigator.clipboard.writeText(text); app.share = 'Kopiert! Jetzt in den Gruppenchat damit.'; }
+    if (navigator.share) { await navigator.share({ text }); app.sheet = null; }
+    else { await navigator.clipboard.writeText(text); app.sheet = 'name'; app.sheetMsg = 'Kopiert! Ab in den Gruppenchat.'; }
   } catch (err) {
     if (err?.name === 'AbortError') return;
-    app.share = text;
+    app.sheet = 'name';
+    app.sheetMsg = text;
   }
   render();
 }
 
-async function copyLink(day, entry) {
-  const nameInput = document.getElementById('name');
-  if (nameInput) { app.progress.name = cleanName(nameInput.value); save(app.progress); }
-  const link = shareLink(day, entry.score, entry.line);
-  try { await navigator.clipboard.writeText(link); app.share = 'Link kopiert.'; } catch { app.share = link; }
-  render();
+function shareOrAskName(ctx) {
+  app.shareCtx = ctx;
+  if (!app.progress.name) { app.sheet = 'name'; app.sheetMsg = ''; return render(); }
+  share(ctx);
 }
 
 // ---------- actions ----------
 const findDep = key => departures(app.run).find(d => d.key === key);
-const dailyRun = day => createRun({ seed: hashOf('daily', day), mode: 'daily', day, regionId: 'de' });
 
 const actions = {
   sound() { setSound(!soundOn()); app.progress.sound = soundOn(); save(app.progress); sfx.click(); render(); },
-  menu() { if (app.run?.done) clearChallenge(); app.run = null; go('menu'); },
-  setup() { go('setup'); },
-  progress() { go('progress'); },
-  daily() { const day = dayNumber(); app.run = dailyRun(day); go('journey'); },
+  home() { if (app.run?.done) clearChallenge(); app.run = null; go('home'); },
+  figuren() { go('figuren'); },
+  'close-sheet'() { app.sheet = null; if (app.ns) app.ns.map = false; render(); },
+  daily() { app.run = dailyRun(dayNumber()); go('plan'); },
   challenge() {
     const day = app.challenge.day;
     app.run = createRun({ seed: hashOf('daily', day), mode: day === dayNumber() ? 'daily' : 'challenge', day, regionId: 'de' });
-    go('journey');
+    go('plan');
   },
-  'pick-char'(el) { app.setup.characterId = el.dataset.id; render(); },
+  free() { if (app.screen !== 'home') { clearChallenge(); app.screen = 'home'; } app.sheet = 'free'; render(); },
+  duel() { app.sheet = 'duel'; render(); },
+  'pick-char'(el) { app.progress.character = el.dataset.id; save(app.progress); sfx.click(); render(); },
   'pick-region'(el) { app.setup.regionId = el.dataset.id; render(); },
-  'pick-stufe'(el) { app.setup.stufe = Number(el.dataset.id); render(); },
+  'pick-stufe'(el) { app.setup.stufe = Math.min(Number(el.dataset.id), app.progress.stufeMax, MAX_STUFE); render(); },
   'start-free'() {
-    startRun({ ...app.setup, seed: (Math.random() * 4294967296) >>> 0, mode: 'free', perks: unlocked(app.progress).perks });
+    const u = unlocked(app.progress);
+    app.run = createRun({
+      seed: (Math.random() * 4294967296) >>> 0, mode: 'free', characterId: app.progress.character, perks: u.perks,
+      regionId: u.regions.includes(app.setup.regionId) ? app.setup.regionId : 'nord', stufe: app.setup.stufe,
+    });
+    go('plan');
   },
   begin() { arrive(null); },
-  dep(el) { app.ns.sheet = findDep(el.dataset.key); render(); },
-  'close-sheet'() { app.ns.sheet = null; render(); },
-  sprint(el) { const opt = findDep(el.dataset.key); app.ns.sheet = null; startSprint(opt); },
-  stroll(el) { const opt = findDep(el.dataset.key); board(() => stroll(app.run, opt), opt); },
+  map() { app.ns.map = true; render(); },
+  dep(el) { startSprint(findDep(el.dataset.key)); },
   taxi(el) {
     const run = app.run, from = run.at, to = el.dataset.to;
     takeTaxi(run, to);
-    rideAnimation(from, TAXI.emoji, { html: `Ankunft ${run.net.nodes[to].city} ${clock(run.clock)} · Taxi`, kind: 'meh' });
+    rideAnimation(from, TAXI.emoji, { html: `Taxi. Teuer, aber da. ${clock(run.clock)}`, kind: 'meh' });
   },
   buy(el) { if (buyItem(app.run, el.dataset.id)) sfx.coin(); render(); },
-  lounge() { if (loungeJob(app.run)) app.ns.notice = { html: 'Gejobbt. Geld da, Zeit weg.', kind: 'meh' }; render(); },
+  lounge() { if (loungeJob(app.run)) { app.ns.notice = { html: 'Gejobbt. Geld da, Zeit weg.', kind: 'meh' }; sfx.coin(); } render(); },
   event(el) {
     const run = app.run, from = run.at;
     app.ns.eventResult = resolveEvent(run, Number(el.dataset.id));
@@ -254,36 +278,27 @@ const actions = {
   'event-ok'() {
     const run = app.run;
     if (app.ns.movedFrom) {
-      const emoji = run.legs.at(-1).emoji;
-      return rideAnimation(app.ns.movedFrom, emoji, { html: `${app.ns.eventResult} Jetzt ${clock(run.clock)}.`, kind: 'meh' });
+      return rideAnimation(app.ns.movedFrom, run.legs.at(-1).emoji, { html: `${app.ns.eventResult} Jetzt ${clock(run.clock)}.`, kind: 'meh' });
     }
     app.ns.notice = { html: app.ns.eventResult, kind: 'meh' };
     app.ns.eventResult = null;
     render();
   },
-  share() {
-    const run = app.run;
-    const entry = app.progress.daily[run.day] && run.mode === 'daily' ? app.progress.daily[run.day] : app.outcome.res;
-    shareResult(run.day, entry, run);
+  share() { shareOrAskName(dailyContext()); },
+  'share-daily'() { shareOrAskName(dailyContext()); },
+  send() {
+    const input = document.getElementById('name');
+    app.progress.name = cleanName(input?.value || '');
+    save(app.progress);
+    share(app.sheet === 'duel' || !app.shareCtx ? dailyContext() : app.shareCtx);
   },
-  'copy-link'() {
-    const run = app.run;
-    const entry = app.progress.daily[run.day] && run.mode === 'daily' ? app.progress.daily[run.day] : app.outcome.res;
-    copyLink(run.day, entry);
-  },
-  'share-daily'() {
-    const day = dayNumber();
-    shareResult(day, app.progress.daily[day], dailyRun(day));
-  },
-  again() { clearChallenge(); go('setup'); },
 };
 
 ui.addEventListener('click', e => {
-  const el = e.target.closest('[data-act]');
-  if (!el || el.disabled) return;
+  const el = e.target.closest('[data-act], [data-stop]');
+  if (!el || el.hasAttribute('data-stop') || el.disabled) return;
   unlock();
-  const fn = actions[el.dataset.act];
-  if (fn) fn(el);
+  actions[el.dataset.act]?.(el);
 });
 
 render();

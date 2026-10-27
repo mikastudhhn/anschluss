@@ -2,7 +2,7 @@
 import { LADDER, MAX_STUFE } from './content.js';
 
 export function newProgress() {
-  return { km: 0, stufeMax: 0, runs: 0, onTime: 0, bestScore: null, daily: {}, name: '', sound: false };
+  return { km: 0, stufeMax: 0, runs: 0, onTime: 0, bestScore: null, daily: {}, streak: { count: 0, last: 0 }, character: 'pendler', name: '', sound: false };
 }
 
 export function parseProgress(raw) {
@@ -12,6 +12,7 @@ export function parseProgress(raw) {
   if (!data || typeof data !== 'object') return base;
   for (const k of Object.keys(base)) if (k in data && typeof data[k] === typeof base[k]) base[k] = data[k];
   if (typeof data.bestScore === 'number') base.bestScore = data.bestScore;
+  if (!Number.isInteger(base.streak?.count) || !Number.isInteger(base.streak?.last)) base.streak = { count: 0, last: 0 };
   return base;
 }
 
@@ -41,8 +42,16 @@ export function recordRun(progress, r) {
   p.runs++;
   if (r.score >= 0) p.onTime++;
   if (p.bestScore === null || r.score > p.bestScore) p.bestScore = r.score;
-  if (r.mode === 'daily') p.daily[r.day] = { score: r.score, stars: r.stars, line: r.line };
+  if (r.mode === 'daily') {
+    p.daily[r.day] = { score: r.score, stars: r.stars, line: r.line };
+    p.streak = { count: p.streak.last === r.day - 1 ? p.streak.count + 1 : 1, last: r.day };
+  }
   let stufeUnlocked = null;
   if (r.score >= 0 && r.stufe === p.stufeMax && p.stufeMax < MAX_STUFE) stufeUnlocked = ++p.stufeMax;
   return { progress: p, unlocks, stufeUnlocked, dailyCounted: r.mode === 'daily' };
 }
+
+// Days in a row with a played daily; still shown the day after, gone once a day is skipped.
+export const currentStreak = (progress, today) => (progress.streak.last >= today - 1 ? progress.streak.count : 0);
+
+export const level = progress => 1 + LADDER.filter(e => progress.km >= e.km).length;

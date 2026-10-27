@@ -4,8 +4,9 @@ import { SEC_PER_MIN, LINES, SEV } from '../logic/content.js';
 import { sfx } from './audio.js';
 
 const TAU = Math.PI * 2;
-const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const FONT = '"Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const DISP = '"Lilita One", "Nunito", ui-rounded, system-ui, sans-serif';
+const INK = '#14183a', YEL = '#ffd21f', RED = '#ff4b3e', GRN = '#2fd27a';
 const WALL = 30;
 const SHOPC = [[255, 207, 90], [90, 209, 255], [255, 107, 138], [138, 255, 193], [195, 155, 255], [255, 154, 61]];
 const SUITC = ['#e63946', '#3a86ff', '#8338ec', '#2a9d8f', '#f4a261', '#ff006e'];
@@ -46,8 +47,116 @@ export function themeFor(spec) {
   return h >= 17 ? 'abend' : 'tag';
 }
 
+// ---------- drawing helpers (draw into the active context) ----------
+let ctx = null;
+function rrect(x, y, w, h, r) {
+  ctx.beginPath();
+  if (w <= 0 || h <= 0) return;
+  r = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function rrect2(x, y, w, h, rl, rR) {
+  ctx.beginPath();
+  rl = Math.min(rl, h / 2); rR = Math.min(rR, h / 2);
+  ctx.moveTo(x + rl, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rR); ctx.arcTo(x + w, y + h, x, y + h, 6);
+  ctx.arcTo(x, y + h, x, y, 6); ctx.arcTo(x, y, x + w, y, rl);
+  ctx.closePath();
+}
+const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); };
+const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
+const shadow = (x, y, rx, ry, a) => { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fill(); };
+const font = (w, s, f) => { ctx.font = `${w} ${s}px ${f || FONT}`; };
+function text(str, x, y, color, align, base) {
+  ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = base || 'alphabetic';
+  ctx.fillText(str, x, y);
+}
+function ellipsize(str, maxW) {
+  if (ctx.measureText(str).width <= maxW) return str;
+  let s = str;
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+function wrap(str, maxW, maxLines) {
+  const words = str.split(' '), lines = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { const keep = lines.slice(0, maxLines); keep[maxLines - 1] = ellipsize(lines.slice(maxLines - 1).join(' '), maxW); return keep; }
+  return lines;
+}
+const FLAPCH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function flap(str, t, delay) {
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    const settle = (delay || 0) + 0.035 * i + 0.15;
+    out += t >= settle || str[i] === ' ' ? str[i] : FLAPCH[(Math.random() * FLAPCH.length) | 0];
+  }
+  return out;
+}
+function starPath(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rad = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+  ctx.closePath();
+}
+function outlined(str, x, y, col, lw) {
+  ctx.lineJoin = 'round'; ctx.lineWidth = lw || 6; ctx.strokeStyle = INK;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.strokeText(str, x, y);
+  ctx.fillStyle = col; ctx.fillText(str, x, y);
+}
+
+function drawRunner(look, x, y, run, bob, sc, lean, ghost) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (!ghost) shadow(0, 13, 15, 5, 0.32);
+  ctx.scale(sc, sc); ctx.rotate(lean); ctx.translate(0, -bob);
+  if (ghost) ctx.globalAlpha *= 0.18;
+  for (const side of [-1, 1]) {
+    const len = 13 + side * run * 6;
+    ctx.fillStyle = '#2c3e66'; rrect(side * 6 - 4, 2, 8, len, 4); ctx.fill();
+    ctx.fillStyle = '#f4f4f4'; ctx.beginPath(); ctx.ellipse(side * 6, 2 + len, 5, 3.2, 0, 0, TAU); ctx.fill();
+  }
+  ctx.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    const ex = side * 16, ey = -3 - side * run * 7;
+    ctx.strokeStyle = look.jacket[1]; ctx.lineWidth = 6; line(side * 11, -12, ex, ey);
+    ctx.fillStyle = '#f0bf96'; circle(ex, ey + 1, 3);
+  }
+  const g = ctx.createLinearGradient(-13, 0, 13, 0);
+  g.addColorStop(0, look.jacket[0]); g.addColorStop(1, look.jacket[1]);
+  ctx.fillStyle = g; rrect(-13, -18, 26, 24, 9); ctx.fill();
+  ctx.fillStyle = '#17a398'; rrect(-10, -15, 20, 19, 6); ctx.fill();
+  ctx.fillStyle = '#128a80'; rrect(-10, -15, 20, 8, 5); ctx.fill();
+  ctx.fillStyle = '#f0bf96'; circle(-8.5, -25, 2.5); circle(8.5, -25, 2.5);
+  ctx.fillStyle = look.hair; circle(0, -26, 9);
+  ctx.restore();
+}
+
+
+// The player character on its own, e.g. running on the home screen.
+export function createRunnerPreview(canvas, characterId) {
+  const own = canvas.getContext('2d');
+  const look = CHAR_LOOK[characterId] || CHAR_LOOK.pendler;
+  return t => {
+    ctx = own;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const k = canvas.width / 70;
+    ctx.setTransform(k, 0, 0, k, canvas.width / 2, canvas.height * 0.68);
+    const phase = t * 9;
+    drawRunner(look, 0, 0, Math.sin(phase), Math.abs(Math.cos(phase)) * 3, 1, 0.08, false);
+  };
+}
+
 export function createSprintView(canvas, characterId) {
-  const ctx = canvas.getContext('2d');
+  const own = canvas.getContext('2d');
   let scale = 1;
   const V = { particles: [], texts: [], banner: null, app: null, shake: 0, flash: 0, flapT: 0, gleisFlapT: 0, stepI: 0, chips: {}, sp: null, theme: 'tag' };
   const look = CHAR_LOOK[characterId] || CHAR_LOOK.pendler;
@@ -58,70 +167,6 @@ export function createSprintView(canvas, characterId) {
     scale = (r.width / W) * dpr;
     canvas.width = Math.round(W * scale);
     canvas.height = Math.round(H * scale);
-  }
-
-  // ---------- drawing helpers ----------
-  function rrect(x, y, w, h, r) {
-    ctx.beginPath();
-    if (w <= 0 || h <= 0) return;
-    r = Math.min(r, w / 2, h / 2);
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-  function rrect2(x, y, w, h, rl, rR) {
-    ctx.beginPath();
-    rl = Math.min(rl, h / 2); rR = Math.min(rR, h / 2);
-    ctx.moveTo(x + rl, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rR); ctx.arcTo(x + w, y + h, x, y + h, 6);
-    ctx.arcTo(x, y + h, x, y, 6); ctx.arcTo(x, y, x + w, y, rl);
-    ctx.closePath();
-  }
-  const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); };
-  const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
-  const shadow = (x, y, rx, ry, a) => { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fill(); };
-  const font = (w, s, f) => { ctx.font = `${w} ${s}px ${f || FONT}`; };
-  function text(str, x, y, color, align, base) {
-    ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = base || 'alphabetic';
-    ctx.fillText(str, x, y);
-  }
-  function ellipsize(str, maxW) {
-    if (ctx.measureText(str).width <= maxW) return str;
-    let s = str;
-    while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
-    return s + '…';
-  }
-  function wrap(str, maxW, maxLines) {
-    const words = str.split(' '), lines = [];
-    let cur = '';
-    for (const w of words) {
-      const t = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
-    }
-    if (cur) lines.push(cur);
-    if (lines.length > maxLines) { const keep = lines.slice(0, maxLines); keep[maxLines - 1] = ellipsize(lines.slice(maxLines - 1).join(' '), maxW); return keep; }
-    return lines;
-  }
-  const FLAPCH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  function flap(str, t, delay) {
-    let out = '';
-    for (let i = 0; i < str.length; i++) {
-      const settle = (delay || 0) + 0.035 * i + 0.15;
-      out += t >= settle || str[i] === ' ' ? str[i] : FLAPCH[(Math.random() * FLAPCH.length) | 0];
-    }
-    return out;
-  }
-  function starPath(x, y, r) {
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rad = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
-    ctx.closePath();
-  }
-  function outlined(str, x, y, col, lw) {
-    ctx.lineJoin = 'round'; ctx.lineWidth = lw || 6; ctx.strokeStyle = 'rgba(6,10,28,0.88)';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeText(str, x, y);
-    ctx.fillStyle = col; ctx.fillText(str, x, y);
   }
 
   // ---------- effects ----------
@@ -203,6 +248,7 @@ export function createSprintView(canvas, characterId) {
     consume(sp);
     if (V.banner) { V.banner.t += dt; if (V.banner.t > V.banner.dur) V.banner = null; }
     if (V.app) { V.app.t += dt; if (V.app.t > V.app.dur) V.app = null; }
+    if (V.chips.app) V.tutChip += dt;
     for (const P of V.particles) {
       P.t += dt; P.x += P.vx * dt; P.y += P.vy * dt; P.rot += P.vr * dt;
       if (P.world) P.y += sp.curV * dt;
@@ -223,6 +269,7 @@ export function createSprintView(canvas, characterId) {
     V.particles = []; V.texts = []; V.banner = null; V.app = null; V.confetti = false;
     V.flapT = 0; V.gleisFlapT = 0;
     V.chips = { tafel: { n: sp.gleis.tafel, good: sp.gleis.good.tafel } };
+    V.tutChip = 0;
     resize();
   }
 
@@ -465,33 +512,6 @@ export function createSprintView(canvas, characterId) {
   }
 
   // ---------- entities ----------
-  function drawRunner(x, y, run, bob, sc, lean, ghost) {
-    ctx.save();
-    ctx.translate(x, y);
-    if (!ghost) shadow(0, 13, 15, 5, 0.32);
-    ctx.scale(sc, sc); ctx.rotate(lean); ctx.translate(0, -bob);
-    if (ghost) ctx.globalAlpha *= 0.18;
-    for (const side of [-1, 1]) {
-      const len = 13 + side * run * 6;
-      ctx.fillStyle = '#2c3e66'; rrect(side * 6 - 4, 2, 8, len, 4); ctx.fill();
-      ctx.fillStyle = '#f4f4f4'; ctx.beginPath(); ctx.ellipse(side * 6, 2 + len, 5, 3.2, 0, 0, TAU); ctx.fill();
-    }
-    ctx.lineCap = 'round';
-    for (const side of [-1, 1]) {
-      const ex = side * 16, ey = -3 - side * run * 7;
-      ctx.strokeStyle = look.jacket[1]; ctx.lineWidth = 6; line(side * 11, -12, ex, ey);
-      ctx.fillStyle = '#f0bf96'; circle(ex, ey + 1, 3);
-    }
-    const g = ctx.createLinearGradient(-13, 0, 13, 0);
-    g.addColorStop(0, look.jacket[0]); g.addColorStop(1, look.jacket[1]);
-    ctx.fillStyle = g; rrect(-13, -18, 26, 24, 9); ctx.fill();
-    ctx.fillStyle = '#17a398'; rrect(-10, -15, 20, 19, 6); ctx.fill();
-    ctx.fillStyle = '#128a80'; rrect(-10, -15, 20, 8, 5); ctx.fill();
-    ctx.fillStyle = '#f0bf96'; circle(-8.5, -25, 2.5); circle(8.5, -25, 2.5);
-    ctx.fillStyle = look.hair; circle(0, -26, 9);
-    ctx.restore();
-  }
-
   function drawPlayer() {
     const sp = V.sp, p = sp.player;
     const run = Math.sin(p.phase) * p.amp, bob = Math.abs(Math.cos(p.phase)) * 3 * p.amp;
@@ -501,9 +521,9 @@ export function createSprintView(canvas, characterId) {
     const lean = clamp((LANES[p.lane] - p.x) * 0.006, -0.35, 0.35);
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (p.boost > 0 && sp.phase === 'run') { drawRunner(p.x, y + 26, run, bob, sc, lean, true); drawRunner(p.x, y + 13, run, bob, sc, lean, true); }
+    if (p.boost > 0 && sp.phase === 'run') { drawRunner(look, p.x, y + 26, run, bob, sc, lean, true); drawRunner(look, p.x, y + 13, run, bob, sc, lean, true); }
     if (p.stun > 0 && Math.floor(sp.time * 14) % 2 === 0) ctx.globalAlpha *= 0.55;
-    drawRunner(p.x, y, run, bob, sc, lean, false);
+    drawRunner(look, p.x, y, run, bob, sc, lean, false);
     ctx.restore();
     if (p.stun > 0) for (let i = 0; i < 3; i++) { const a = sp.time * 7 + i * 2.09; ctx.fillStyle = '#ffd400'; starPath(p.x + Math.cos(a) * 15, y - 44 + Math.sin(a) * 5, 4.5); ctx.fill(); }
     if (sp.phase === 'wrong' || (sp.phase === 'missed' && sp.t > 0.8)) { font('800', 18); text(sp.phase === 'wrong' ? '?!' : '…', p.x + 14, y - 40, 'rgba(255,255,255,0.85)', 'left'); }
@@ -681,82 +701,76 @@ export function createSprintView(canvas, characterId) {
     }
   }
 
-  // ---------- HUD ----------
+  // ---------- HUD (chunky game look: yellow bar, ink outlines) ----------
+  function inkBox(x, y, w, h, r, fill, lw = 3, drop = 0) {
+    if (drop) { ctx.fillStyle = INK; rrect(x, y + drop, w, h, r); ctx.fill(); }
+    ctx.fillStyle = fill; rrect(x, y, w, h, r); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = lw; rrect(x, y, w, h, r); ctx.stroke();
+  }
+
   function drawHUD() {
     const sp = V.sp, spec = sp.spec;
-    const g = ctx.createLinearGradient(0, 0, 0, HUD_H);
-    g.addColorStop(0, '#0e3585'); g.addColorStop(1, '#0a2665');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, HUD_H);
-    const color = spec.bus ? SEV.color : (LINES[spec.train.type] || LINES.RE).color;
-    font('800', 11);
+    ctx.fillStyle = YEL; ctx.fillRect(0, 0, W, HUD_H);
+    ctx.fillStyle = INK; ctx.fillRect(0, HUD_H - 3, W, 3);
+    const color = spec.bus ? SEV.color : spec.train.type === 'RE' ? '#5b6475' : (LINES[spec.train.type] || LINES.RE).color;
+    font('400', 15, DISP);
     const badge = spec.train.name;
-    const bw = ctx.measureText(badge).width + 10;
-    ctx.fillStyle = color; rrect(10, 12, bw, 17, 4); ctx.fill();
-    text(flap(badge, V.flapT, 0), 15, 24.5, '#fff');
-    font('700', 15);
-    text(ellipsize(flap('→ ' + spec.train.dest, V.flapT, 0.1), 290 - bw - 22), bw + 18, 25, '#fff');
-    // platform box shows the board (Tafel) value; a broken board flickers
-    ctx.fillStyle = '#fff'; rrect(306, 8, 46, 50, 6); ctx.fill();
-    font('600', 9);
+    const bw = ctx.measureText(badge).width + 14;
+    inkBox(10, 8, bw, 24, 7, color, 2.5);
+    text(flap(badge, V.flapT, 0), 17, 21, '#fff', 'left', 'middle');
+    font('400', 19, DISP);
+    text(ellipsize('→ ' + spec.train.dest, 286 - bw - 22), bw + 18, 21, INK, 'left', 'middle');
+    inkBox(298, 6, 54, 52, 10, '#fff', 3, 3);
     if (spec.bus) {
-      text('Halt', 329, 20, '#0a2665', 'center');
-      ctx.fillStyle = '#ffd400'; circle(329, 39, 12); ctx.fillStyle = '#1f9d55'; circle(329, 39, 10);
-      font('900', 13); text('H', 329, 39.5, '#ffd400', 'center', 'middle');
+      font('900', 9); text('HALT', 325, 18, INK, 'center', 'middle');
+      font('400', 26, DISP); text('H', 325, 40, '#1f9d55', 'center', 'middle');
     } else {
       const broken = !V.chips.tafel.good;
-      text(broken ? 'gestört' : 'Gleis', 329, 20, broken ? '#e5383b' : '#0a2665', 'center');
-      font('800', 24);
+      font('900', 9); text(broken ? 'GESTÖRT' : 'GLEIS', 325, 18, broken ? RED : INK, 'center', 'middle');
       const flick = broken && Math.random() < 0.08;
-      text(flick ? String((sp.gleis.shown % 14) + 1) : flap(String(sp.gleis.shown), V.gleisFlapT, 0.1), 329, 48, '#0a2665', 'center');
+      font('400', 28, DISP);
+      text(flick ? String((sp.gleis.shown % 14) + 1) : flap(String(sp.gleis.shown), V.gleisFlapT, 0.1), 325, 40, INK, 'center', 'middle');
     }
-    const bx = 10, bw2 = 178, by = 41, bh = 8;
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'; rrect(bx, by, bw2, bh, 4); ctx.fill();
+    const bx = 10, bw2 = 176, by = 42, bh = 14;
     const frac = clamp(sp.s / sp.D, 0, 1);
     const need = (sp.D - sp.s) / sp.v;
     const ratio = need > 0 ? sp.timeLeft / need : 9;
-    ctx.fillStyle = ratio > 1.15 ? '#3ddc97' : ratio > 1 ? '#ffd400' : '#ff5a5a';
-    rrect(bx, by, Math.max(bh, bw2 * frac), bh, 4); ctx.fill();
-    ctx.fillStyle = look.jacket[1]; circle(bx + bw2 * frac, by + bh / 2, 6);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx + bw2 * frac, by + bh / 2, 6, 0, TAU); ctx.stroke();
-    if (sp.phase === 'board' || sp.phase === 'done' && sp.result?.made) { font('800', 15); text('✓ an Bord', 296, 53, '#3ddc97', 'right'); }
-    else if (sp.phase === 'missed' || sp.timeLeft <= 0) { font('800', 15); text(spec.bus ? 'Bus weg' : 'Zug weg', 296, 53, '#ff5a5a', 'right'); }
+    inkBox(bx, by, bw2, bh, 7, '#fff6c9', 2.5);
+    ctx.fillStyle = ratio > 1.15 ? GRN : ratio > 1 ? '#ffb300' : RED;
+    rrect(bx + 2, by + 2, Math.max(10, (bw2 - 4) * frac), bh - 4, 5); ctx.fill();
+    ctx.fillStyle = look.jacket[1]; circle(bx + bw2 * frac, by + bh / 2, 8);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(bx + bw2 * frac, by + bh / 2, 8, 0, TAU); ctx.stroke();
+    if (sp.phase === 'board' || (sp.phase === 'done' && sp.result?.made)) { font('400', 20, DISP); text('AN BORD!', 290, 48, '#1f9d55', 'right', 'middle'); }
+    else if (sp.phase === 'missed' || sp.timeLeft <= 0) { font('400', 20, DISP); text(spec.bus ? 'BUS WEG' : 'ZUG WEG', 290, 48, RED, 'right', 'middle'); }
     else {
       const m = Math.max(0, Math.ceil(sp.timeLeft / SEC_PER_MIN));
       const low = sp.timeLeft < 4.5 && sp.phase === 'run';
-      font('600', 11);
+      font('900', 12); text('Min', 290, 51, INK, 'right', 'middle');
       const minW = ctx.measureText('Min').width;
-      text('Min', 296, 53, 'rgba(255,255,255,0.75)', 'right');
-      font('800', 21, MONO);
-      text(String(m), 296 - minW - 4, 54, low ? (Math.floor(sp.time * 6) % 2 ? '#ff5a5a' : '#fff') : '#ffd400', 'right');
-      const numW = ctx.measureText(String(m)).width;
-      font('600', 11); text('in', 296 - minW - 8 - numW, 53, 'rgba(255,255,255,0.75)', 'right');
+      font('400', 30, DISP);
+      text(String(m), 290 - minW - 4, 48, low && Math.floor(sp.time * 6) % 2 ? RED : INK, 'right', 'middle');
     }
   }
 
-  // Compact memory of what each source said, with its trust cue.
+  // What each source said, with its trust cue: green = trust, red = maybe wrong.
   function drawChips() {
     const sp = V.sp;
     if (sp.spec.bus) return;
-    const items = [];
-    const c = V.chips;
-    items.push({ icon: '🪧', n: c.tafel.n, good: c.tafel.good, cue: c.tafel.good ? '' : 'gestört' });
-    if (c.app) items.push({ icon: '📱', n: c.app.n, good: c.app.good, cue: c.app.good ? 'aktuell' : 'veraltet' });
-    if (c.durchsage) items.push({ icon: '📢', n: c.durchsage.n, good: c.durchsage.good, cue: c.durchsage.good ? 'klar' : 'rauscht' });
+    const c = V.chips, items = [{ icon: '🪧', ...c.tafel, cue: c.tafel.good ? 'ok' : 'gestört' }];
+    if (c.app) items.push({ icon: '📱', ...c.app, cue: c.app.good ? 'live' : 'alt' });
+    if (c.durchsage) items.push({ icon: '📢', ...c.durchsage, cue: c.durchsage.good ? 'klar' : 'rauscht' });
     let x = 8;
     const y = HUD_H + 8;
     for (const it of items) {
-      font('800', 12);
-      const label = `${it.icon} ${it.n}`;
-      font('600', 9);
-      const cueW = it.cue ? ctx.measureText(it.cue).width + 6 : 0;
-      font('800', 12);
-      const w = ctx.measureText(label).width + 14 + cueW;
-      ctx.fillStyle = it.good ? 'rgba(10,40,30,0.78)' : 'rgba(40,14,14,0.72)';
-      rrect(x, y, w, 22, 11); ctx.fill();
-      ctx.strokeStyle = it.good ? 'rgba(61,220,151,0.7)' : 'rgba(255,90,90,0.55)'; ctx.lineWidth = 1;
-      rrect(x + 0.5, y + 0.5, w - 1, 21, 11); ctx.stroke();
-      text(label, x + 7, y + 11.5, it.good ? '#fff' : 'rgba(255,255,255,0.7)', 'left', 'middle');
-      if (it.cue) { font('600', 9); text(it.cue, x + w - 7, y + 12, it.good ? '#3ddc97' : '#ff9a9a', 'right', 'middle'); }
+      font('400', 17, DISP);
+      const numW = ctx.measureText(String(it.n)).width;
+      font('900', 10);
+      const cueW = ctx.measureText(it.cue).width;
+      const w = 30 + numW + cueW + 14;
+      inkBox(x, y, w, 26, 13, it.good ? '#d9ffe9' : '#ffe0dc', 2.5, 2);
+      font('400', 14); text(it.icon, x + 6, y + 13.5, INK, 'left', 'middle');
+      font('400', 17, DISP); text(String(it.n), x + 26, y + 14, INK, 'left', 'middle');
+      font('900', 10); text(it.cue, x + w - 8, y + 14, it.good ? '#13854a' : '#c92a1f', 'right', 'middle');
       x += w + 6;
     }
   }
@@ -765,41 +779,34 @@ export function createSprintView(canvas, characterId) {
     const a = V.banner;
     if (!a) return;
     const inT = ease(clamp(a.t / 0.3, 0, 1)), outT = ease(clamp((a.t - (a.dur - 0.3)) / 0.3, 0, 1));
-    const y = HUD_H + 36 - 64 * (1 - inT) - 100 * outT;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(10,32,86,0.96)'; rrect(8, y, 344, 50, 10); ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = a.garbled ? '#ff9a9a' : '#ffd400'; ctx.lineWidth = 1.5; rrect(8.75, y + 0.75, 342.5, 48.5, 10); ctx.stroke();
-    font('900', 18); text(a.garbled ? '📻' : '📢', 28, y + 26, '#fff', 'center', 'middle');
+    const y = HUD_H + 40 - 70 * (1 - inT) - 110 * outT;
+    inkBox(8, y, 344, 52, 12, '#fff', 3, 4);
+    font('400', 22); text(a.garbled ? '📻' : '📢', 28, y + 27, INK, 'center', 'middle');
     let chipW = 0;
     if (a.chip) {
-      font('800', 10);
+      font('900', 10);
       chipW = ctx.measureText(a.chip).width + 14;
-      ctx.fillStyle = a.col; rrect(344 - chipW, y + 15, chipW, 20, 10); ctx.fill();
-      text(a.chip, 344 - chipW / 2, y + 25.5, '#fff', 'center', 'middle');
+      inkBox(340 - chipW, y + 15, chipW, 22, 11, RED, 2);
+      text(a.chip, 340 - chipW / 2, y + 26.5, '#fff', 'center', 'middle');
     }
-    font(a.garbled ? 'italic 600' : '600', 12.5);
-    const lines = wrap(a.text, 344 - chipW - 8 - 46, 2);
-    const y0 = lines.length === 1 ? y + 25.5 : y + 18;
-    lines.forEach((l, i) => text(l, 46, y0 + i * 15, a.garbled ? 'rgba(255,255,255,0.75)' : '#fff', 'left', 'middle'));
+    font(a.garbled ? 'italic 800' : '800', 12.5);
+    const lines = wrap(a.text, 340 - chipW - 8 - 46, 2);
+    const y0 = lines.length === 1 ? y + 26.5 : y + 19;
+    lines.forEach((l, i) => text(l, 46, y0 + i * 15, a.garbled ? '#6b7280' : INK, 'left', 'middle'));
   }
 
   function drawApp() {
     const a = V.app;
     if (!a) return;
     const inT = ease(clamp(a.t / 0.3, 0, 1)), outT = ease(clamp((a.t - (a.dur - 0.3)) / 0.3, 0, 1));
-    const y = H + 6 - 70 * inT + 80 * outT;
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(250,250,252,0.97)'; rrect(10, y - 62, 236, 54, 12); ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = '#3a86ff'; rrect(18, y - 54, 28, 28, 7); ctx.fill();
-    font('900', 15); text('📱', 32, y - 39, '#fff', 'center', 'middle');
-    font('700', 9.5);
-    text(a.good ? 'REISE-APP  ·  gerade eben' : 'REISE-APP  ·  vor 23 Min  ·  offline', 54, y - 47, a.good ? '#1f9d55' : '#e5383b', 'left', 'middle');
-    font('800', 13); text(`${V.sp.spec.train.name}: Gleis ${a.n}`, 54, y - 32, a.good ? '#111' : '#777', 'left', 'middle');
-    font('600', 10); text(a.good ? 'Live-Daten' : 'Daten evtl. veraltet', 54, y - 17, '#6b7280', 'left', 'middle');
+    const y = H + 6 - 74 * inT + 84 * outT;
+    inkBox(10, y - 64, 240, 56, 14, '#fff', 3, 4);
+    inkBox(18, y - 56, 30, 30, 8, '#3a86ff', 2);
+    font('400', 16); text('📱', 33, y - 40, '#fff', 'center', 'middle');
+    font('900', 10);
+    text(a.good ? 'REISE-APP · LIVE' : 'REISE-APP · VOR 23 MIN', 56, y - 49, a.good ? '#13854a' : RED, 'left', 'middle');
+    font('400', 17, DISP); text(`Gleis ${a.n}`, 56, y - 30, a.good ? INK : '#8a8f9c', 'left', 'middle');
+    font('800', 10); text(a.good ? 'Echtzeit-Daten' : 'Daten evtl. veraltet', 56, y - 15, '#6b7280', 'left', 'middle');
   }
 
   function drawIntro() {
@@ -807,15 +814,16 @@ export function createSprintView(canvas, characterId) {
     const a = t < 0.25 ? ease(t / 0.25) : t > INTRO - 0.3 ? 1 - ease(clamp((t - INTRO + 0.3) / 0.3, 0, 1)) : 1;
     ctx.save();
     ctx.globalAlpha = clamp(a, 0, 1);
-    ctx.fillStyle = 'rgba(5,8,18,0.45)'; ctx.fillRect(0, HUD_H, W, H - HUD_H);
+    ctx.fillStyle = 'rgba(10,14,40,0.45)'; ctx.fillRect(0, HUD_H, W, H - HUD_H);
     ctx.translate(180, 300);
-    ctx.fillStyle = spec.bus ? '#8a4b00' : '#0a2665';
-    rrect(-150, -70, 300, 140, 14); ctx.fill();
-    font('800', 18); text(`${spec.train.name} → ${spec.train.dest}`, 0, -38, '#fff', 'center', 'middle');
-    font('600', 13);
-    text(spec.bus ? 'Haltestelle vor dem Bahnhof' : `Tafel sagt Gleis ${sp.gleis.tafel}${sp.gleis.good.tafel ? '' : ' (gestört)'}`, 0, -12, 'rgba(255,255,255,0.8)', 'center', 'middle');
-    font('900', 34); text(`${Math.round(spec.timeLimit / SEC_PER_MIN)} Min`, 0, 26, '#ffd400', 'center', 'middle');
-    font('600', 11); text('◀ links tippen · rechts tippen ▶', 0, 54, 'rgba(255,255,255,0.65)', 'center', 'middle');
+    ctx.scale(0.9 + 0.1 * a, 0.9 + 0.1 * a);
+    inkBox(-146, -78, 292, 156, 18, '#fff', 4, 6);
+    font('400', 24, DISP); text(ellipsize(`${spec.train.name} → ${spec.train.dest}`, 270), 0, -48, INK, 'center', 'middle');
+    font('800', 13);
+    text(spec.bus ? 'Haltestelle vor dem Bahnhof' : `Tafel: Gleis ${sp.gleis.tafel}${sp.gleis.good.tafel ? '' : ' (gestört!)'}`, 0, -22, '#5b6475', 'center', 'middle');
+    inkBox(-62, -4, 124, 48, 14, YEL, 3, 4);
+    font('400', 32, DISP); text(`${Math.round(spec.timeLimit / SEC_PER_MIN)} Min`, 0, 21, INK, 'center', 'middle');
+    font('900', 12); text('◀ tippen · tippen ▶', 0, 62, '#5b6475', 'center', 'middle');
     ctx.restore();
   }
 
@@ -823,16 +831,32 @@ export function createSprintView(canvas, characterId) {
     const sp = V.sp;
     if (sp.phase === 'board' && sp.t > 0.45) {
       const t = sp.t - 0.45, s = t < 0.25 ? ease(t / 0.25) * 1.12 : 1.12 - 0.12 * Math.min(1, (t - 0.25) / 0.15);
-      ctx.save(); ctx.translate(180, 250); ctx.scale(s, s);
-      font('900', 29); outlined(sp.spec.bus ? 'Bus erwischt!' : 'Anschluss erwischt!', 0, 0, '#fff', 7);
-      font('700', 14); outlined(`♻ ${sp.pfand} Pfand${sp.hits === 0 ? '  ·  sauber gelaufen +3 €' : ''}`, 0, 34, '#9be15d', 5);
+      ctx.save(); ctx.translate(180, 250); ctx.scale(s, s); ctx.rotate(-0.05);
+      font('400', 36, DISP); outlined(sp.spec.bus ? 'BUS ERWISCHT!' : 'ERWISCHT!', 0, 0, YEL, 9);
+      font('400', 18, DISP); outlined(`♻ ${sp.pfand} Pfand${sp.hits === 0 ? ' · sauber +3 €' : ''}`, 0, 38, '#9bf0c0', 6);
       ctx.restore();
     } else if (sp.phase === 'missed' && sp.t > 0.2) {
       const t = sp.t - 0.2, s = t < 0.2 ? ease(t / 0.2) * 1.15 : 1.15 - 0.15 * Math.min(1, (t - 0.2) / 0.15);
-      ctx.save(); ctx.translate(180, 250); ctx.scale(s, s);
-      font('900', 40); outlined(sp.spec.bus ? 'Bus weg.' : 'Zug weg.', 0, 0, '#ff5a5a', 8);
+      ctx.save(); ctx.translate(180, 250); ctx.scale(s, s); ctx.rotate(0.05);
+      font('400', 46, DISP); outlined(sp.spec.bus ? 'BUS WEG.' : 'ZUG WEG.', 0, 0, RED, 10);
       ctx.restore();
     }
+  }
+
+  // First-journey coach marks instead of explanation texts.
+  function bubble(x, y, str) {
+    font('400', 17, DISP);
+    const w = ctx.measureText(str).width + 26;
+    const bob = Math.sin(V.sp.time * 5) * 3;
+    inkBox(x - w / 2, y - 18 + bob, w, 36, 18, '#fff', 3, 4);
+    text(str, x, y + 1 + bob, INK, 'center', 'middle');
+  }
+  function drawTutorial() {
+    const sp = V.sp;
+    if (!sp.spec.tutorial || sp.phase !== 'run') return;
+    if (sp.t < 2.6) bubble(180, PLAYER_Y - 120, '◀ Tippen zum Ausweichen ▶');
+    else if (V.chips.app && V.tutChip < 3.5) bubble(180, HUD_H + 58, 'Grün = trau dich. Rot = Vorsicht!');
+    else if (sp.fork && !sp.fork.chosen && sp.fork.d0 - sp.s < 900) bubble(180, 330, 'Wähl dein Gleis: links oder rechts!');
   }
 
   function drawTexts() {
@@ -842,7 +866,7 @@ export function createSprintView(canvas, characterId) {
       ctx.save();
       ctx.globalAlpha = clamp(k > 0.65 ? 1 - (k - 0.65) / 0.35 : 1, 0, 1);
       ctx.translate(T.x, T.y - T.t * 28); ctx.scale(s, s);
-      font('900', T.size); outlined(T.str, 0, 0, T.col, Math.max(5, T.size / 5));
+      font('400', T.size, DISP); outlined(T.str, 0, 0, T.col, Math.max(5, T.size / 4));
       ctx.restore();
     }
   }
@@ -850,6 +874,7 @@ export function createSprintView(canvas, characterId) {
   function render(paused) {
     const sp = V.sp;
     if (!sp) return;
+    ctx = own;
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     const th = TH();
     ctx.save();
@@ -890,12 +915,13 @@ export function createSprintView(canvas, characterId) {
     drawBanner();
     drawHUD();
     if (sp.phase === 'intro') drawIntro();
+    drawTutorial();
     drawOutcome();
     if (sp.phase === 'wrong' && sp.t > 1.0) { ctx.fillStyle = `rgba(0,0,0,${clamp((sp.t - 1.0) / 0.3, 0, 1)})`; ctx.fillRect(0, 0, W, H); }
     if (paused) {
-      ctx.fillStyle = 'rgba(5,8,18,0.7)'; ctx.fillRect(0, 0, W, H);
-      font('900', 28); outlined('Pause', 180, 260, '#fff', 6);
-      font('700', 14); outlined('Tippen zum Weiterlaufen', 180, 296, '#ffd400', 4);
+      ctx.fillStyle = 'rgba(10,14,40,0.7)'; ctx.fillRect(0, 0, W, H);
+      font('400', 44, DISP); outlined('PAUSE', 180, 260, YEL, 9);
+      font('400', 18, DISP); outlined('Tippen zum Weiterlaufen', 180, 304, '#fff', 6);
     }
   }
 

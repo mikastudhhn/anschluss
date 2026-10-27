@@ -123,26 +123,31 @@ export const OCCASIONS = [
 
 export const EVENTS = {
   mitfahr: {
+    icon: '🚗',
     title: 'Mitfahrgelegenheit',
     text: 'Ein Typ mit Kombi bietet dir an, dich mitzunehmen. Kostenlos. Wie lange es dauert, weiß er selbst nicht.',
     choices: ['Einsteigen', 'Lieber Bahn'],
   },
   fundsache: {
+    icon: '👛',
     title: 'Fundsache',
     text: 'Auf der Bank liegt ein Portemonnaie mit 15 €.',
     choices: ['Behalten (+15 €)', 'Abgeben (Finderlohn: eine Überraschung)'],
   },
   stellwerk: {
+    icon: '🚦',
     title: 'Stellwerksstörung',
     text: 'Alle Züge ab hier fahren frühestens in 20 Minuten. Draußen teilen sich Leute ein Taxi.',
     choices: ['Warten', 'Taxi teilen (12 €)'],
   },
   musiker: {
+    icon: '🎸',
     title: 'Straßenmusik',
     text: 'Jemand spielt den Bummelbahn-Blues. Der Ohrwurm macht dich beim nächsten Sprint schneller.',
     choices: ['3 € geben', 'Weitergehen'],
   },
   automat: {
+    icon: '🎰',
     title: 'Kaputter Automat',
     text: 'Der Fahrkartenautomat spuckt Münzen aus. Die Security schaut gerade weg. Vielleicht.',
     choices: ['Einsammeln (+8 €, Risiko)', 'Ehrlich bleiben'],

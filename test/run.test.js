@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createRun, departures, taxiOptions, needMinutes, sprintSpec, completeSprint, stroll, takeTaxi,
+  createRun, departures, taxiOptions, needMinutes, sprintSpec, completeSprint, takeTaxi,
   kioskOffers, buyItem, loungeJob, resolveEvent, result, referenceArrival, eventPending,
 } from '../src/logic/run.js';
 import { SEC_PER_MIN, MIN_WINDOW, SPRINT_DIST, LOUNGE, ITEMS } from '../src/logic/content.js';
@@ -102,17 +102,6 @@ test('need and sprint spec follow station size, character and items', () => {
   assert.ok(slow > needMinutes(run, opt));
   run.items.push('laufschuhe');
   assert.ok(sprintSpec(run, opt).speedMul > 1);
-});
-
-test('strolling is only allowed with plenty of time', () => {
-  const run = fresh();
-  const tight = departures(run).find(d => d.window < 2 * needMinutes(run, d));
-  if (tight) assert.throws(() => stroll(run, tight));
-  run.clock -= 60;
-  const relaxed = departures(run).find(d => d.window >= 2 * needMinutes(run, d));
-  assert.ok(relaxed);
-  stroll(run, relaxed);
-  assert.equal(run.at, relaxed.to);
 });
 
 test('taxi leaves now, costs money and needs enough of it', () => {

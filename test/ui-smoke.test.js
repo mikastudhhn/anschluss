@@ -5,13 +5,13 @@ import assert from 'node:assert/strict';
 import { createRun, departures, completeSprint, sprintSpec, result } from '../src/logic/run.js';
 import { createSprint, updateSprint, steer } from '../src/logic/sprint.js';
 import { newProgress, recordRun } from '../src/logic/progress.js';
-import { menuScreen, setupScreen, progressScreen, journeyScreen, stationScreen, rideScreen, resultScreen } from '../src/ui/screens.js';
+import { homeScreen, freeSheet, duelSheet, nameSheet, figurenScreen, planScreen, stationScreen, rideScreen, resultScreen } from '../src/ui/screens.js';
 import { mapSvg, nodePoint } from '../src/ui/mapView.js';
 import { EVENTS } from '../src/logic/content.js';
 
 globalThis.window = { devicePixelRatio: 2 };
 globalThis.matchMedia = () => ({ matches: false });
-const { createSprintView } = await import('../src/ui/sprintView.js');
+const { createSprintView, createRunnerPreview } = await import('../src/ui/sprintView.js');
 
 function fakeCanvas() {
   const calls = { fillText: [] };
@@ -29,34 +29,40 @@ function fakeCanvas() {
   return { canvas: { getContext: () => ctx, getBoundingClientRect: () => ({ width: 360, height: 560 }), width: 0, height: 0 }, calls };
 }
 
-const ns = (o = {}) => ({ notice: null, sheet: null, eventResult: null, movedFrom: null, ...o });
+const ns = (o = {}) => ({ notice: null, eventResult: null, movedFrom: null, map: false, ...o });
 
-test('menu, setup and progress render for new and veteran players', () => {
-  for (const p of [newProgress(), { ...newProgress(), km: 99999, stufeMax: 5, daily: { 3: { score: 4, stars: 3, line: '🚄🚆' } }, name: 'Mika' }]) {
+test('home, sheets and figuren render for new and veteran players', () => {
+  const dailyRun = createRun({ seed: 9, mode: 'daily', day: 3, regionId: 'de' });
+  for (const p of [newProgress(), { ...newProgress(), km: 99999, stufeMax: 5, daily: { 3: { score: 4, stars: 3, line: '🚄🚆' } }, name: 'Mika', character: 'rentner' }]) {
     const challenge = { day: 3, score: -2, name: 'Jo<b>', line: '🚄' };
-    const html = menuScreen({ progress: p, day: 3, challenge, soundOn: true });
-    assert.ok(html.includes('Tagesreise #3'));
-    assert.ok(!html.includes('<b>Jo<b>'), 'names are escaped');
-    assert.ok(setupScreen({ progress: p, setup: { characterId: 'pendler', regionId: 'nord', stufe: 0 } }).includes('Freie Reise'));
-    assert.ok(progressScreen({ progress: p }).includes('Vielfahrer'));
+    const plain = homeScreen({ progress: p, day: 3, dailyRun, challenge: null, soundOn: true, streak: 2 });
+    assert.ok(/TAGESREISE #3|TEILEN/.test(plain));
+    assert.ok(plain.includes('🔥 2 Tage'));
+    const duel = homeScreen({ progress: p, day: 3, dailyRun, challenge, soundOn: false, streak: 0 });
+    assert.ok(duel.includes('DUELL ANNEHMEN'));
+    assert.ok(!duel.includes('<b>Jo'), 'names are escaped');
+    assert.ok(freeSheet({ progress: p, setup: { regionId: 'nord', stufe: 0 } }).includes('Freie Reise'));
+    assert.ok(/Duell|Wie heißt du/.test(duelSheet({ progress: p, day: 3 })));
+    assert.ok(nameSheet(p, 'TEILEN', 'Kopiert!').includes('Kopiert!'));
+    assert.ok(figurenScreen({ progress: p }).includes('Vielfahrer'));
   }
 });
 
 test('a whole journey renders every screen along the way, including all node kinds and sheets', () => {
   for (let seed = 1; seed <= 25; seed++) {
     const run = createRun({ seed, regionId: seed % 2 ? 'de' : 'nord', characterId: ['pendler', 'studentin', 'rentner'][seed % 3], stufe: seed % 6 });
-    assert.ok(journeyScreen(run).includes('<svg'));
+    assert.ok(planScreen(run).includes('<svg'));
     while (!run.done) {
       const kind = run.net.nodes[run.at].kind;
       const html = stationScreen(run, ns());
-      assert.ok(html.includes('Abfahrten'));
+      assert.ok(html.includes('Welchen Zug'));
+      assert.ok(stationScreen(run, ns({ map: true })).includes('Dein Netz'));
       if (kind === 'event') {
         assert.ok(html.includes(EVENTS[run.net.nodes[run.at].event].title));
-        assert.ok(stationScreen(run, ns({ eventResult: 'ok' })).includes('Weiter'));
+        assert.ok(stationScreen(run, ns({ eventResult: 'ok' })).includes('WEITER'));
       }
       if (kind === 'kiosk') assert.ok(html.includes('Kiosk'));
       const d = departures(run)[0];
-      assert.ok(/sprinten/i.test(stationScreen(run, ns({ sheet: d }))));
       assert.ok(rideScreen(run, { emoji: '🚄', city: d.city }).includes('veh'));
       const [x, y] = nodePoint(run.net, run.at);
       assert.ok(Number.isFinite(x) && Number.isFinite(y));
@@ -64,8 +70,8 @@ test('a whole journey renders every screen along the way, including all node kin
     }
     const res = result(run);
     const rec = recordRun(newProgress(), { mode: 'daily', day: 1, stufe: 0, score: res.score, stars: res.stars, km: res.km, line: res.line });
-    const html = resultScreen({ run: { ...run, mode: 'daily', day: 1 }, res, rec, challenge: { day: 1, score: 3, name: 'Mika', line: '🚄' }, progress: rec.progress, share: 'Kopiert!' });
-    assert.ok(html.includes('Angekommen'));
+    const html = resultScreen({ run: { ...run, mode: 'daily', day: 1 }, res, rec, challenge: { day: 1, score: 3, name: 'Mika', line: '🚄' }, progress: rec.progress });
+    assert.ok(/PÜNKTLICH!|KNAPP!|ZU SPÄT!/.test(html));
     assert.ok(html.includes('Mika'));
     assert.ok(mapSvg(run).includes('e-done'));
   }
@@ -79,7 +85,7 @@ test('the sprint renderer draws complete sprints of every theme without errors',
   for (const [i, t] of themes.entries()) {
     const run = createRun({ seed: 40 + i, regionId: 'de' });
     run.items.push('thermobecher', 'bahncard');
-    const spec = { ...sprintSpec(run, departures(run)[0]), ...t, timeLimit: 10 + i * 6 };
+    const spec = { ...sprintSpec(run, departures(run)[0]), ...t, timeLimit: 10 + i * 6, tutorial: i % 2 === 0 };
     const sp = createSprint(spec);
     const { canvas, calls } = fakeCanvas();
     const view = createSprintView(canvas, ['pendler', 'studentin', 'rentner'][i % 3]);
@@ -93,4 +99,11 @@ test('the sprint renderer draws complete sprints of every theme without errors',
     assert.ok(sp.result, `theme ${i} finished`);
     assert.ok(calls.fillText.some(s => s.includes('Min') || s.includes('Bord') || s.includes('weg')));
   }
+});
+
+test('the runner preview draws without errors', () => {
+  const { canvas } = fakeCanvas();
+  canvas.width = 300; canvas.height = 300;
+  const draw = createRunnerPreview(canvas, 'studentin');
+  for (let t = 0; t < 2; t += 0.1) draw(t);
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newProgress, parseProgress, unlocked, nextUnlock, recordRun } from '../src/logic/progress.js';
+import { newProgress, parseProgress, unlocked, nextUnlock, recordRun, currentStreak, level } from '../src/logic/progress.js';
 import { LADDER, MAX_STUFE } from '../src/logic/content.js';
 
 const run = (o = {}) => ({ mode: 'free', day: null, stufe: 0, score: -5, stars: 2, km: 300, line: '🚆🚆', ...o });
@@ -62,6 +62,7 @@ test('parseProgress survives garbage and keeps known fields', () => {
   assert.equal(p.km, 1234);
   assert.equal(p.name, 'Mika');
   assert.equal(p.unknown, undefined);
+  assert.deepEqual(parseProgress(JSON.stringify({ streak: null })).streak, { count: 0, last: 0 });
 });
 
 test('recordRun does not mutate its input', () => {
@@ -78,4 +79,27 @@ test('a repeated daily is practice: only kilometres count, no stats and no stufe
   assert.equal(r.progress.onTime, 0);
   assert.equal(r.progress.bestScore, -20);
   assert.equal(r.stufeUnlocked, null);
+});
+
+test('daily streak counts consecutive days, breaks after a missed day, ignores replays', () => {
+  let p = newProgress();
+  assert.equal(currentStreak(p, 5), 0);
+  p = recordRun(p, run({ mode: 'daily', day: 5 })).progress;
+  assert.equal(currentStreak(p, 5), 1);
+  p = recordRun(p, run({ mode: 'daily', day: 5 })).progress;
+  assert.equal(currentStreak(p, 5), 1, 'replay');
+  p = recordRun(p, run({ mode: 'daily', day: 6 })).progress;
+  assert.equal(currentStreak(p, 6), 2);
+  assert.equal(currentStreak(p, 7), 2, 'still alive the next day');
+  assert.equal(currentStreak(p, 8), 0, 'broken after a missed day');
+  p = recordRun(p, run({ mode: 'free' })).progress;
+  assert.equal(currentStreak(p, 7), 2, 'free runs do not count');
+  p = recordRun(p, run({ mode: 'daily', day: 9 })).progress;
+  assert.equal(currentStreak(p, 9), 1);
+  assert.deepEqual(parseProgress(JSON.stringify(p)).streak, p.streak);
+});
+
+test('level is one plus the reached ladder steps', () => {
+  assert.equal(level(newProgress()), 1);
+  assert.equal(level({ ...newProgress(), km: 1000 }), 3);
 });

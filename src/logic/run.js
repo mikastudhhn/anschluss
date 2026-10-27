@@ -185,13 +185,6 @@ export function completeSprint(run, option, { made, elapsed, money, bahncardUsed
   return board(run, option);
 }
 
-export const canStroll = (run, option) => option.window >= 2 * needMinutes(run, option);
-
-export function stroll(run, option) {
-  if (!canStroll(run, option)) throw new Error('not enough time to stroll');
-  return board(run, option);
-}
-
 export function takeTaxi(run, to) {
   const t = taxiOptions(run).find(x => x.to === to);
   if (!t || !t.payable) throw new Error('taxi not affordable');

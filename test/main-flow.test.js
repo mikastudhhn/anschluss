@@ -42,7 +42,7 @@ const { app } = globalThis.window.__anschluss;
 const { steer } = await import('../src/logic/sprint.js');
 
 const click = (act, data = {}) => {
-  const el = { dataset: { act, ...data }, disabled: false };
+  const el = { dataset: { act, ...data }, disabled: false, hasAttribute: () => false };
   for (const fn of els.ui.listeners.click) fn({ target: { closest: () => el } });
 };
 const pump = (ms = 16, max = 4000) => {
@@ -62,11 +62,11 @@ const pump = (ms = 16, max = 4000) => {
 };
 const flush = () => new Promise(r => setTimeout(r, 0));
 
-test('menu → daily → journey → sprints → result → share, end to end', async () => {
-  assert.equal(app.screen, 'menu');
-  assert.ok(els.ui.innerHTML.includes('Tagesreise #'));
+test('home → daily → plan → sprints → result → share, end to end', async () => {
+  assert.equal(app.screen, 'home');
+  assert.ok(els.ui.innerHTML.includes('TAGESREISE #'));
   click('daily');
-  assert.equal(app.screen, 'journey');
+  assert.equal(app.screen, 'plan');
   click('begin');
   assert.equal(app.screen, 'station');
   for (let guard = 0; guard < 40 && app.screen !== 'result'; guard++) {
@@ -74,34 +74,37 @@ test('menu → daily → journey → sprints → result → share, end to end', 
     if (app.screen === 'ride') { pump(); continue; }
     const key = /data-act="dep" data-key="([^"]+)"/.exec(els.ui.innerHTML)[1];
     click('dep', { key });
-    assert.ok(els.ui.innerHTML.includes('class="sheet"'));
-    click('sprint', { key });
-    assert.equal(app.screen, 'sprint');
+    assert.equal(app.screen, 'sprint', 'one tap on a train starts the sprint');
     assert.equal(els.stage.hidden, false);
     pump();
     if (app.screen === 'ride') pump();
   }
   assert.equal(app.screen, 'result');
-  assert.ok(els.ui.innerHTML.includes('Angekommen'));
+  assert.match(els.ui.innerHTML, /PÜNKTLICH!|KNAPP!|ZU SPÄT!/);
   const p = JSON.parse(storage['anschluss.progress']);
   assert.ok(p.km > 0);
   assert.equal(Object.keys(p.daily).length, 1);
-  click('copy-link');
-  await flush();
-  assert.match(copied, /^https:\/\/anschluss\.test\/#c=[\w-]+$/);
+  assert.equal(p.streak.count, 1);
   click('share');
+  assert.ok(els.ui.innerHTML.includes('Wie heißt du?'), 'asks for a name first');
+  click('send');
   await flush();
-  assert.match(copied, /^Anschluss! Tagesreise #\d+\n.+ → .+\n.+(zu früh|zu spät|auf die Minute) ⭐+\nhttps:/);
-  click('menu');
-  assert.ok(els.ui.innerHTML.includes('gespielt'));
+  assert.match(copied, /^Anschluss! Tagesreise #\d+\n.+ → .+\n.+(zu früh|zu spät|auf die Minute) ⭐+\nhttps:\/\/anschluss\.test\/#c=[\w-]+$/);
+  assert.ok(els.ui.innerHTML.includes('Kopiert!'));
+  click('home');
+  assert.equal(app.screen, 'home');
+  assert.ok(els.ui.innerHTML.includes('🔥 1 Tag'));
+  assert.ok(els.ui.innerHTML.includes('data-act="share-daily"'));
 });
 
-test('free journey setup respects unlocks', () => {
-  click('setup');
-  assert.equal(app.screen, 'setup');
-  assert.ok(!els.ui.innerHTML.includes('data-act="pick-char" data-id="rentner"'));
+test('free journey uses the chosen character and only unlocked options', () => {
+  click('free');
+  assert.ok(els.ui.innerHTML.includes('Freie Reise'));
+  assert.ok(!els.ui.innerHTML.includes('data-act="pick-region" data-id="de"'), 'region locked');
+  click('pick-stufe', { id: '3' });
+  assert.equal(app.setup.stufe, app.progress.stufeMax >= 3 ? 3 : app.progress.stufeMax);
   click('start-free');
-  assert.equal(app.screen, 'journey');
+  assert.equal(app.screen, 'plan');
   assert.equal(app.run.characterId, 'pendler');
-  click('menu');
+  click('home');
 });
