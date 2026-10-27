@@ -84,7 +84,7 @@ h1, h2, h3, p { margin: 0; }
 .e-dead { stroke: rgba(255, 255, 255, 0.15); }
 .node circle { fill: var(--white); stroke: var(--ink); stroke-width: 2.5; }
 .node .icon { font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
-.node .label { font: 900 10px var(--font); fill: var(--white); text-anchor: middle; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; }
+.map-label { font: 900 11px var(--font); fill: var(--white); text-anchor: middle; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; }
 .n-here circle { fill: var(--yel); }
 .n-visited circle { fill: #ffe9a0; }
 .n-dead { opacity: 0.35; }

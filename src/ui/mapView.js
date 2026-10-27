@@ -1,7 +1,7 @@
 // The journey network as SVG: whole route visible from the start, so players can plan ahead.
 import { CITIES, OUTLINE, NODE_KINDS } from '../logic/content.js';
 
-const VW = 360, VH = 300, PAD = 0.45;
+const VW = 360, VH = 400, PAD = 0.45;
 const proj = ([lon, lat]) => [lon * 0.63, -lat];
 
 // Fits the network into the view; returns a projection for [lon, lat] points.
@@ -38,19 +38,24 @@ export function mapSvg(run, { vehicle = false } = {}) {
     const here = n.id === run.at;
     const reachable = net.edges.some(e => e.from === run.at && e.to === n.id);
     const cls = here ? 'n-here' : visited ? 'n-visited' : reachable ? 'n-next' : n.layer < curLayer ? 'n-dead' : 'n-future';
-    const below = y < VH - 26;
     return `<g class="node ${cls}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
       ${here ? '<circle class="pulse" r="13"/>' : ''}
       <circle r="11"/>
       <text class="icon" y="1">${NODE_KINDS[n.kind].icon}</text>
-      <text class="label" y="${below ? 22 : -16}">${n.city}</text>
     </g>`;
+  }).join('');
+
+  // Only the names that matter right now, drawn last so no station covers them.
+  const labels = Object.values(net.nodes).filter(n => n.id === run.at || n.id === net.startId || n.id === net.goalId
+    || net.edges.some(e => e.from === run.at && e.to === n.id)).map(n => {
+    const [x, y] = pos(n.id);
+    return `<text class="map-label" x="${x.toFixed(1)}" y="${(y < VH - 26 ? y + 23 : y - 16).toFixed(1)}">${n.city}</text>`;
   }).join('');
 
   const veh = vehicle ? '<text id="veh" class="vehicle" x="0" y="0"></text>' : '';
   return `<svg class="map" viewBox="0 0 ${VW} ${VH}" role="img" aria-label="Streckennetz">
     <polygon class="land" points="${outlinePts}"/>
-    ${edges}${nodes}${veh}
+    ${edges}${nodes}${labels}${veh}
   </svg>`;
 }
 
