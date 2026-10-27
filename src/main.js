@@ -10,6 +10,7 @@ import {
 } from './ui/screens.js';
 import { createSprintView, createRunnerPreview } from './ui/sprintView.js';
 import { nodePoint } from './ui/mapView.js';
+import { createGesture } from './ui/gesture.js';
 import { sfx, setSound, soundOn, unlock } from './ui/audio.js';
 
 const KEY = 'anschluss.progress';
@@ -83,7 +84,7 @@ const compareTo = run => (app.challenge && run && (run.mode === 'challenge' || r
 // ---------- journey flow ----------
 function arrive(notice) {
   if (app.run.done) return finishRun();
-  app.ns = { notice, eventResult: null, movedFrom: null, map: false };
+  app.ns = { notice, eventResult: null, movedFrom: null, map: false, item: null };
   go('station');
 }
 
@@ -184,12 +185,18 @@ function sprintInput(dir) {
   steer(app.sprint, dir);
 }
 
+const gesture = createGesture(() => canvas.getBoundingClientRect().width, sprintInput);
+const local = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, e.timeStamp]; };
 canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
   unlock();
-  const r = canvas.getBoundingClientRect();
-  sprintInput(e.clientX - r.left < r.width / 2 ? -1 : 1);
+  if (app.paused) { app.paused = false; return; }
+  canvas.setPointerCapture?.(e.pointerId);
+  gesture.down(...local(e));
 }, { passive: false });
+canvas.addEventListener('pointermove', e => gesture.move(...local(e)));
+canvas.addEventListener('pointerup', e => gesture.up(...local(e)));
+canvas.addEventListener('pointercancel', () => gesture.cancel());
 canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 
 window.addEventListener('keydown', e => {
@@ -239,7 +246,7 @@ const actions = {
   sound() { setSound(!soundOn()); app.progress.sound = soundOn(); save(app.progress); sfx.click(); render(); },
   home() { if (app.run?.done) clearChallenge(); app.run = null; go('home'); },
   figuren() { go('figuren'); },
-  'close-sheet'() { app.sheet = null; if (app.ns) app.ns.map = false; render(); },
+  'close-sheet'() { app.sheet = null; if (app.ns) { app.ns.map = false; app.ns.item = null; } render(); },
   daily() { app.run = dailyRun(dayNumber()); go('plan'); },
   challenge() {
     const day = app.challenge.day;
@@ -267,7 +274,8 @@ const actions = {
     takeTaxi(run, to);
     rideAnimation(from, TAXI.emoji, { html: `Taxi. Teuer, aber da. ${clock(run.clock)}`, kind: 'meh' });
   },
-  buy(el) { if (buyItem(app.run, el.dataset.id)) sfx.coin(); render(); },
+  item(el) { app.ns.item = el.dataset.id; render(); },
+  buy(el) { if (buyItem(app.run, el.dataset.id)) { sfx.coin(); app.ns.item = null; } render(); },
   lounge() { if (loungeJob(app.run)) { app.ns.notice = { html: 'Gejobbt. Geld da, Zeit weg.', kind: 'meh' }; sfx.coin(); } render(); },
   event(el) {
     const run = app.run, from = run.at;

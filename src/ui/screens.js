@@ -1,6 +1,6 @@
 // HTML templates for every non-sprint screen. Pure: state in, markup out. Actions use data-act attributes.
-import { ITEMS, CHARACTERS, REGIONS, STUFEN, LADDER, OCCASIONS, EVENTS, LOUNGE, LINES, SEV, TEXT } from '../logic/content.js';
-import { departures, taxiOptions, needMinutes, kioskOffers, loungeUsed, eventPending } from '../logic/run.js';
+import { ITEMS, CHARACTERS, REGIONS, STUFEN, LADDER, OCCASIONS, EVENTS, LOUNGE, SEV, TEXT } from '../logic/content.js';
+import { departures, taxiOptions, needMinutes, kioskOffers, loungeUsed, eventPending, itemPrice } from '../logic/run.js';
 import { unlocked, nextUnlock, level } from '../logic/progress.js';
 import { mapSvg } from './mapView.js';
 
@@ -10,43 +10,49 @@ const signed = n => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
 const minutesWord = s => (s === 0 ? 'auf die Minute' : s > 0 ? 'Minuten zu früh' : 'Minuten zu spät');
 const outcome = s => (s >= 0 ? 'good' : s >= -15 ? 'meh' : 'bad');
 const shortLabel = label => label.replace(/^[^:]+: /, '');
+const km = n => n.toLocaleString('de-DE');
 const sheet = inner => `<div class="sheet" data-act="close-sheet"><div class="sheet-card" data-stop>${inner}</div></div>`;
+const stationSign = (text, extra = '') => `<div class="station-sign ${extra}"><span>${text}</span></div>`;
 
-function levelBar(progress) {
+function levelChip(progress) {
   const n = nextUnlock(progress);
-  const label = n ? `${esc(shortLabel(n.entry.label))} in ${(n.entry.km - progress.km).toLocaleString('de-DE')} km` : 'Alles freigeschaltet';
-  return `<button class="lvl" data-act="figuren"><span class="fill" style="width:${n ? (n.fraction * 100).toFixed(1) : 100}%"></span><b>${level(progress)}</b><span>${label}</span></button>`;
+  const label = n ? `${esc(shortLabel(n.entry.label))} · noch ${km(n.entry.km - progress.km)} km` : 'Alles freigeschaltet';
+  return `<button class="lvl" data-act="figuren" aria-label="Level ${level(progress)}">
+    <b>${level(progress)}</b><span class="lvl-bar"><i style="width:${n ? (n.fraction * 100).toFixed(1) : 100}%"></i></span><small>${label}</small></button>`;
 }
 
 // ---------- home ----------
 export function homeScreen({ progress, day, dailyRun, challenge, soundOn, streak, sheetHtml }) {
   const done = progress.daily[day];
   const net = dailyRun.net;
-  let sign, main;
+  let sign, main, extra = '';
   if (challenge) {
-    sign = `<div class="sign duel"><span class="disp">⚔️ ${esc(challenge.name || 'Jemand')}</span><small>Tagesreise #${challenge.day}: ${signed(challenge.score)} Min · ${esc(challenge.line)}</small></div>`;
-    main = `<button class="btn y" data-act="challenge">DUELL ANNEHMEN<small>schlag ${signed(challenge.score)} Min</small></button>`;
+    sign = stationSign(`⚔️ ${esc(challenge.name || 'Jemand')} · ${signed(challenge.score)} Min`, 'duel');
+    main = `<button class="cta" data-act="challenge"><span>Duell annehmen</span><small>Tagesreise #${challenge.day}</small></button>`;
   } else if (done) {
-    sign = `<div class="sign"><span class="disp">${signed(done.score)} Min ${'⭐'.repeat(done.stars)}</span><small>${esc(done.line)}</small></div>`;
-    main = `<button class="btn y" data-act="share-daily">TEILEN<small>Tagesreise #${day} · morgen gibt’s eine neue</small></button>
-      <button class="practice" data-act="daily">nochmal üben (zählt nicht)</button>`;
+    sign = stationSign(`${signed(done.score)} Min ${'⭐'.repeat(done.stars)}`);
+    main = `<button class="cta" data-act="share-daily"><span>Teilen</span><small>${esc(done.line)}</small></button>`;
+    extra = '<button class="link" data-act="daily">nochmal üben</button>';
   } else {
-    sign = `<div class="sign"><span class="disp">${esc(net.nodes[net.startId].city)} → ${esc(net.nodes[net.goalId].city)}</span><small>${esc(OCCASIONS[net.occasion].name)}</small></div>`;
-    main = `<button class="btn y" data-act="daily">TAGESREISE #${day}<small>gleiche Reise für alle</small></button>`;
+    sign = stationSign(`${esc(net.nodes[net.startId].city)} → ${esc(net.nodes[net.goalId].city)}`);
+    main = `<button class="cta" data-act="daily"><span>Tagesreise #${day}</span><small>${esc(OCCASIONS[net.occasion].name)} · gleiche Reise für alle</small></button>`;
   }
   return `<section class="screen home">
-    <div class="topbar">${levelBar(progress)}<button class="round" data-act="sound" aria-label="Ton">${soundOn ? '🔊' : '🔇'}</button></div>
-    <h1 class="logo">Anschluss!<small>Komm pünktlich an.</small></h1>
+    <div class="topbar">${levelChip(progress)}<button class="round" data-act="sound" aria-label="Ton">${soundOn ? '🔊' : '🔇'}</button></div>
+    <h1 class="logo">Anschluss!</h1>
     <div class="hero">
-      ${streak ? `<div class="streak">🔥 ${streak} ${streak === 1 ? 'Tag' : 'Tage'}</div>` : ''}
+      ${streak ? `<div class="sticker streak">🔥 ${streak}</div>` : ''}
       <canvas id="hero" width="300" height="300" aria-hidden="true"></canvas>
+      <div class="platform"></div>
       ${sign}
     </div>
-    ${main}
-    <div class="squares">
-      <button class="sq" data-act="free"><span>🎲</span>Freie Reise</button>
-      <button class="sq" data-act="duel"><span>⚔️</span>Duell</button>
-      <button class="sq" data-act="figuren"><span>${CHARACTERS[progress.character].icon}</span>Figuren</button>
+    <div class="dock">
+      ${main}${extra}
+      <div class="rounds">
+        <button data-act="free"><i>🎲</i>Frei</button>
+        <button data-act="duel"><i>⚔️</i>Duell</button>
+        <button data-act="figuren"><i>${CHARACTERS[progress.character].icon}</i>Figuren</button>
+      </div>
     </div>
     ${sheetHtml || ''}
   </section>`;
@@ -57,28 +63,27 @@ export function freeSheet({ progress, setup }) {
   const regions = Object.keys(REGIONS).map(id => `<button class="${setup.regionId === id ? 'on' : ''}" ${u.regions.includes(id) ? `data-act="pick-region" data-id="${id}"` : 'disabled'}>${u.regions.includes(id) ? (id === 'nord' ? 'Norden' : 'Deutschland') : '🔒'}</button>`).join('');
   const stufen = [0, 1, 2, 3, 4, 5].map(s => `<button class="${setup.stufe === s ? 'on' : ''}" ${s <= progress.stufeMax ? `data-act="pick-stufe" data-id="${s}"` : 'disabled'}>${s <= progress.stufeMax ? s : '🔒'}</button>`).join('');
   const ch = CHARACTERS[progress.character];
-  return sheet(`<h2 class="title">Freie Reise</h2>
-    <div class="label">Region</div><div class="pills">${regions}</div>
-    <div class="label">Störungsstufe</div><div class="pills">${stufen}</div>
-    <p>${setup.stufe ? esc(STUFEN.slice(1, setup.stufe + 1).map(s => s.desc).join(' ')) : 'Normaler Bahnbetrieb. So normal es eben geht.'}</p>
-    <button class="btn y" data-act="start-free">LOS<small>${ch.icon} als ${esc(ch.name)}</small></button>`);
+  return sheet(`<h2 class="sheet-title">Freie Reise</h2>
+    <div class="field"><span>Region</span><div class="pills">${regions}</div></div>
+    <div class="field"><span>Störung</span><div class="pills">${stufen}</div></div>
+    <p class="hint">${setup.stufe ? esc(STUFEN.slice(1, setup.stufe + 1).map(s => s.desc).join(' ')) : 'Normaler Bahnbetrieb. So normal es eben geht.'}</p>
+    <button class="cta" data-act="start-free"><span>Los</span><small>${ch.icon} ${esc(ch.name)}</small></button>`);
 }
 
 export function duelSheet({ progress, day }) {
-  const done = progress.daily[day];
-  if (!done) {
-    return sheet(`<div class="big-ico">⚔️</div><h2 class="title">Duell</h2>
-      <p>Spiel erst die Tagesreise. Dann schickst du Freunden deinen Link, und sie müssen dich schlagen.</p>
-      <button class="btn y" data-act="daily">TAGESREISE #${day}</button>`);
+  if (!progress.daily[day]) {
+    return sheet(`<div class="big-ico">⚔️</div><h2 class="sheet-title">Duell</h2>
+      <p class="hint">Spiel erst die Tagesreise. Dann schickst du deinen Link rum, und die anderen müssen dich schlagen.</p>
+      <button class="cta" data-act="daily"><span>Tagesreise #${day}</span></button>`);
   }
-  return nameSheet(progress, `DUELL SCHICKEN<small>${signed(done.score)} Min ${'⭐'.repeat(done.stars)}</small>`);
+  return nameSheet(progress, 'Duell schicken');
 }
 
 export function nameSheet(progress, label, message) {
-  return sheet(`<div class="big-ico">⚔️</div><h2 class="title">Wie heißt du?</h2>
+  return sheet(`<h2 class="sheet-title">Wie heißt du?</h2>
     <input id="name" class="name-input" maxlength="16" value="${esc(progress.name)}" placeholder="Dein Name" autocomplete="nickname">
-    <button class="btn y" data-act="send">${label}</button>
-    ${message ? `<p>${esc(message)}</p>` : ''}`);
+    <button class="cta" data-act="send"><span>${esc(label)}</span></button>
+    ${message ? `<p class="hint">${esc(message)}</p>` : ''}`);
 }
 
 // ---------- figuren ----------
@@ -87,26 +92,18 @@ export function figurenScreen({ progress }) {
   const kmFor = id => LADDER.find(e => e.kind === 'character' && e.id === id).km;
   const figs = Object.entries(CHARACTERS).map(([id, c]) => {
     const open = u.characters.includes(id);
-    return `<button class="card fig ${progress.character === id ? 'on' : ''}" ${open ? `data-act="pick-char" data-id="${id}"` : 'disabled'}>
-      <span class="face">${open ? c.icon : '🔒'}</span>
-      <span><span class="disp">${c.name}</span><small>${open ? c.desc : `ab ${kmFor(id).toLocaleString('de-DE')} km`}</small></span>
-    </button>`;
+    return `<button class="fig ${progress.character === id ? 'on' : ''}" ${open ? `data-act="pick-char" data-id="${id}"` : 'disabled'}>
+      <span class="face">${open ? c.icon : '🔒'}</span><b>${c.name}</b><small>${open ? c.desc : `ab ${km(kmFor(id))} km`}</small></button>`;
   }).join('');
-  const ladder = LADDER.map(e => `<li class="${progress.km >= e.km ? 'got' : ''}">${progress.km >= e.km ? '✅' : '🔒'} ${esc(e.label)}<small>${e.km.toLocaleString('de-DE')} km</small></li>`).join('');
-  const stufen = STUFEN.slice(1).map((s, i) => `<li class="${progress.stufeMax > i ? 'got' : ''}">${progress.stufeMax > i ? '🔥' : '🔒'} ${esc(s.desc)}<small>${i + 1}</small></li>`).join('');
+  const ladder = LADDER.map(e => `<li class="${progress.km >= e.km ? 'got' : ''}"><span>${progress.km >= e.km ? '✓' : km(e.km)}</span>${esc(e.label)}</li>`).join('');
+  const stufen = STUFEN.slice(1).map((s, i) => `<li class="${progress.stufeMax > i ? 'got' : ''}"><span>${i + 1}</span>${esc(s.desc)}</li>`).join('');
   return `<section class="screen figuren">
-    <button class="back" data-act="home" aria-label="Zurück">‹</button>
-    <h2 class="title">Figuren</h2>
+    <div class="head"><button class="back" data-act="home" aria-label="Zurück">‹</button>${stationSign('Figuren')}</div>
     <div class="figs">${figs}</div>
-    <div class="stats">
-      <div><b>${level(progress)}</b><small>Level</small></div>
-      <div><b>${progress.km.toLocaleString('de-DE')}</b><small>km</small></div>
-      <div><b>${progress.runs}</b><small>Reisen</small></div>
-      <div><b>${progress.onTime}</b><small>pünktlich</small></div>
-    </div>
-    <h3 class="sec">Vielfahrer</h3><ul class="ladder">${ladder}</ul>
-    <h3 class="sec">Störungsstufen</h3><ul class="ladder">${stufen}</ul>
-    <p class="label" style="text-align:center">Ein Spiel über die ${TEXT.railName}. Ähnlichkeiten mit echten Bahnen sind rein zufällig.</p>
+    <div class="stats"><b>${level(progress)}</b> Level · <b>${km(progress.km)}</b> km · <b>${progress.runs}</b> Reisen · <b>${progress.onTime}</b> pünktlich</div>
+    <h3>Vielfahrer</h3><ul class="ladder">${ladder}</ul>
+    <h3>Störungsstufen</h3><ul class="ladder">${stufen}</ul>
+    <p class="fine">Ein Spiel über die ${TEXT.railName}. Ähnlichkeiten mit echten Bahnen sind rein zufällig.</p>
   </section>`;
 }
 
@@ -114,88 +111,82 @@ export function figurenScreen({ progress }) {
 export function planScreen(run) {
   const occ = OCCASIONS[run.net.occasion], net = run.net;
   return `<section class="screen plan">
-    <button class="back" data-act="home" aria-label="Abbrechen">‹</button>
-    <h2 class="route">${esc(net.nodes[net.startId].city)} → ${esc(net.nodes[net.goalId].city)}</h2>
-    <div class="meta"><span class="chip"><i>🎯</i>${clock(run.termin)} · ${esc(occ.name)}</span><span class="chip"><i>€</i>${run.money}</span></div>
-    <div class="mapbox">${mapSvg(run)}</div>
-    <div class="keys"><span>🛒 Kiosk</span><span>🛋️ Lounge</span><span>❓ Überraschung</span></div>
-    <div class="spacer"></div>
-    <button class="btn y" data-act="begin">LOS<small>jetzt ${clock(run.clock)}</small></button>
+    <div class="head"><button class="back" data-act="home" aria-label="Abbrechen">‹</button>${stationSign(`${esc(net.nodes[net.startId].city)} → ${esc(net.nodes[net.goalId].city)}`)}</div>
+    <div class="termin"><span>${esc(occ.name)}</span><b>${clock(run.termin)}</b></div>
+    <div class="mapbox grow">${mapSvg(run)}<div class="keys">🛒 Kiosk · 🛋️ Lounge · ❓ Überraschung</div></div>
+    <button class="cta" data-act="begin"><span>Los geht’s</span><small>Abfahrt ab ${clock(run.clock)} · ${run.money} €</small></button>
   </section>`;
 }
 
-function strip(run) {
+function track(run) {
   const total = run.net.layers.length, at = run.net.nodes[run.at].layer;
-  const parts = [];
-  for (let i = 0; i < total; i++) {
-    if (i) parts.push(`<span class="l ${i <= at ? 'done' : ''}"></span>`);
-    parts.push(`<span class="d ${i < at ? 'done' : i === at ? 'on' : i === total - 1 ? 'goal' : ''}"></span>`);
-  }
-  return `<button class="strip" data-act="map" aria-label="Netzkarte">${parts.join('')}<span class="map-hint">🗺️</span></button>`;
+  const stops = Array.from({ length: total }, (_, i) => `<i class="${i < at ? 'done' : i === at ? 'on' : i === total - 1 ? 'goal' : ''}" style="left:${(i / (total - 1)) * 100}%"></i>`).join('');
+  return `<button class="track" data-act="map" aria-label="Netzkarte"><span class="rails"><span class="ridden" style="width:${(at / (total - 1)) * 100}%"></span>${stops}</span><span class="map-ico">🗺️</span></button>`;
 }
 
-function feasibility(run, d) {
+function departureRow(run, d) {
   const need = needMinutes(run, d);
-  const fill = Math.min(1, need / d.window);
-  if (d.window >= 1.6 * need) return { fill, color: 'var(--grn)', icon: '🚶' };
-  if (d.window >= need) return { fill, color: 'var(--yel)', icon: '🏃' };
-  return { fill, color: 'var(--red)', icon: '🏃' };
-}
-
-function depCard(run, d) {
-  const f = feasibility(run, d);
-  const color = d.cancelled ? SEV.color : d.type === 'RE' ? 'var(--grey)' : LINES[d.type].color;
-  const time = d.depDelay > 0 ? `<s>${clock(d.plannedDep)}</s> ${clock(d.dep)}` : clock(d.dep);
-  const price = !d.price ? '<span class="price free">frei</span>' : d.payable ? `<span class="price">${d.price}€</span>` : '<span class="price broke">🎲 ohne<br>Ticket</span>';
-  return `<button class="dep" data-act="dep" data-key="${d.key}">
-    <span class="t" style="background:${color}"><span class="disp">${d.cancelled ? 'BUS' : d.type}</span><small>${time}</small></span>
-    <span class="m"><span class="disp">→ ${esc(d.city)}</span><span class="s">an ${clock(d.dep + d.ride)} · ${esc(d.rel)}</span>
-      <span class="meter">${f.icon}<span class="bar"><i style="width:${(f.fill * 100).toFixed(0)}%;background:${f.color}"></i></span>${d.window} Min</span></span>
-    ${price}
+  const state = d.window >= 1.6 * need ? 'easy' : d.window >= need ? 'tight' : 'hard';
+  const type = d.cancelled ? 'BUS' : d.type;
+  const time = d.depDelay > 0 ? `<s>${clock(d.plannedDep)}</s>${clock(d.dep)}` : clock(d.dep);
+  const price = !d.price ? 'frei' : d.payable ? `${d.price} €` : '🎲';
+  return `<button class="row" data-act="dep" data-key="${d.key}">
+    <span class="time">${time}</span>
+    <span class="dest"><b class="type t-${type}"${d.cancelled ? ` style="background:${SEV.color}"` : ''}>${type}</b>${esc(d.city)}<small>an ${clock(d.dep + d.ride)} · ${esc(d.rel)}</small></span>
+    <span class="go ${state}">${state === 'easy' ? '🚶' : '🏃'} ${d.window}′</span>
+    <span class="fare ${d.payable ? '' : 'broke'}">${price}</span>
   </button>`;
 }
 
-function nodeCard(run) {
+function shelf(run) {
   const node = run.net.nodes[run.at];
   if (node.kind === 'kiosk') {
-    const tiles = kioskOffers(run).map(o => `<button class="tile" data-act="buy" data-id="${o.id}" ${run.money >= o.price ? '' : 'disabled'}>
-      <span class="ico">${o.icon}</span>${esc(o.name)}<small>${esc(o.desc)}</small><span class="price">${o.price}€</span></button>`).join('');
-    return tiles ? `<div class="card shop"><h3>🛒 Kiosk</h3><div class="tiles">${tiles}</div></div>` : '';
+    const items = kioskOffers(run).map(o => `<button class="item" data-act="item" data-id="${o.id}"><i>${o.icon}</i><span>${o.price} €</span></button>`).join('');
+    return items ? `<div class="shelf"><span class="shelf-label">Kiosk</span>${items}</div>` : '';
   }
   if (node.kind === 'lounge') {
-    const pay = Math.round(LOUNGE.pay * (run.perks.includes('lounge') ? 1.5 : 1));
     const used = loungeUsed(run);
-    return `<button class="lounge" data-act="lounge" ${used ? 'disabled' : ''}><span class="ico">💻</span><span>${used ? 'Lounge: schon gejobbt' : `Lounge: <b>+${pay} €</b> jobben, kostet ${LOUNGE.minutes} Min`}</span></button>`;
+    const pay = Math.round(LOUNGE.pay * (run.perks.includes('lounge') ? 1.5 : 1));
+    return `<button class="lounge" data-act="lounge" ${used ? 'disabled' : ''}>💻 ${used ? 'Schon gejobbt' : `Lounge: +${pay} € jobben (${LOUNGE.minutes} Min)`}</button>`;
   }
   return '';
+}
+
+function itemSheet(run, id) {
+  const it = ITEMS[id], price = itemPrice(run, id);
+  return sheet(`<div class="big-ico">${it.icon}</div><h2 class="sheet-title">${esc(it.name)}</h2><p class="hint">${esc(it.desc)}</p>
+    <button class="cta" data-act="buy" data-id="${id}" ${run.money >= price ? '' : 'disabled'}><span>Kaufen · ${price} €</span>${run.money >= price ? '' : '<small>zu wenig Geld</small>'}</button>`);
 }
 
 function eventSheet(run, ns) {
   const ev = EVENTS[run.net.nodes[run.at].event];
   if (ns.eventResult) {
-    return sheet(`<div class="big-ico">${ev.icon}</div><h2 class="title">${esc(ev.title)}</h2><p>${esc(ns.eventResult)}</p>
-      <button class="btn" data-act="event-ok">WEITER</button>`);
+    return sheet(`<div class="big-ico">${ev.icon}</div><h2 class="sheet-title">${esc(ev.title)}</h2><p class="hint">${esc(ns.eventResult)}</p>
+      <button class="cta green" data-act="event-ok"><span>Weiter</span></button>`);
   }
-  return sheet(`<div class="big-ico">${ev.icon}</div><h2 class="title">${esc(ev.title)}</h2><p>${esc(ev.text)}</p>
-    ${ev.choices.map((c, i) => `<button class="btn ${i ? 'w' : 'y'}" data-act="event" data-id="${i}">${esc(c)}</button>`).join('')}`);
+  return sheet(`<div class="big-ico">${ev.icon}</div><h2 class="sheet-title">${esc(ev.title)}</h2><p class="hint">${esc(ev.text)}</p>
+    ${ev.choices.map((c, i) => `<button class="${i ? 'choice' : 'cta'}" data-act="event" data-id="${i}"><span>${esc(c)}</span></button>`).join('')}`);
 }
 
 export function stationScreen(run, ns) {
   const left = run.termin - run.clock;
-  const items = run.items.map(id => `<span title="${esc(ITEMS[id].name)}">${ITEMS[id].icon}</span>`).join('');
-  const taxis = taxiOptions(run).map(t => `<button class="taxi" data-act="taxi" data-to="${t.to}" ${t.payable ? '' : 'disabled'}>🚕 Taxi → ${esc(t.city)}, sofort · an ${clock(run.clock + t.ride)}<b>${t.price}€</b></button>`).join('');
-  const overlay = ns.map ? sheet(`<h2 class="title">Dein Netz</h2><div class="mapbox">${mapSvg(run)}</div><button class="btn y" data-act="close-sheet">OK</button>`)
-    : ns.eventResult || eventPending(run) ? eventSheet(run, ns) : '';
+  const items = run.items.map(id => `<i title="${esc(ITEMS[id].name)}">${ITEMS[id].icon}</i>`).join('');
+  const taxis = taxiOptions(run).map(t => `<button class="taxi" data-act="taxi" data-to="${t.to}" ${t.payable ? '' : 'disabled'}>🚕 ${esc(t.city)} ${t.price} €</button>`).join('');
+  const overlay = ns.map ? sheet(`<h2 class="sheet-title">Dein Netz</h2><div class="mapbox">${mapSvg(run)}</div><button class="cta" data-act="close-sheet"><span>OK</span></button>`)
+    : ns.item ? itemSheet(run, ns.item)
+      : ns.eventResult || eventPending(run) ? eventSheet(run, ns) : '';
   return `<section class="screen station">
-    <div class="band"><div class="hud"><span class="clock">${clock(run.clock)}</span><span class="chip"><i>€</i>${run.money}</span>
-      <span class="goal">🎯 ${left >= 0 ? `noch ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${-left} Min drüber`}<b class="${left < 0 ? 'late' : ''}">${clock(run.termin)}</b></span></div>
-    ${strip(run)}</div>
-    <div class="where"><h2 class="city">${esc(run.net.nodes[run.at].city)}</h2><span class="items">${items}</span></div>
-    ${ns.notice ? `<div class="toast ${ns.notice.kind || ''}">${ns.notice.html}</div>` : ''}
-    ${nodeCard(run)}
-    <h3 class="pick">Welchen Zug nimmst du?</h3>
-    ${departures(run).map(d => depCard(run, d)).join('')}
-    ${taxis}
+    <div class="band">
+      <span class="clock">${clock(run.clock)}</span>
+      <span class="coins">${run.money} €</span>
+      <span class="due ${left < 0 ? 'late' : left < 45 ? 'close' : ''}"><small>Termin</small>${clock(run.termin)}</span>
+      ${track(run)}
+    </div>
+    <div class="here">${stationSign(esc(run.net.nodes[run.at].city))}${items ? `<span class="pocket">${items}</span>` : ''}
+      ${ns.notice ? `<div class="sticker note ${ns.notice.kind || ''}">${ns.notice.html}</div>` : ''}</div>
+    ${shelf(run)}
+    <div class="board"><div class="board-head">Abfahrt</div>${departures(run).map(d => departureRow(run, d)).join('')}</div>
+    <div class="taxis">${taxis}</div>
     ${overlay}
   </section>`;
 }
@@ -203,39 +194,42 @@ export function stationScreen(run, ns) {
 export function rideScreen(run, d) {
   return `<section class="screen ride">
     <div class="mapbox">${mapSvg(run, { vehicle: true })}</div>
-    <p class="caption">${d.emoji} → ${esc(d.city)}</p>
+    <p class="caption">${d.emoji} ${esc(d.city)}</p>
   </section>`;
 }
 
 // ---------- result ----------
 export function resultScreen({ run, res, rec, challenge, progress, sheetHtml }) {
-  const occ = OCCASIONS[run.net.occasion];
+  const occ = OCCASIONS[run.net.occasion], net = run.net;
   const kind = outcome(res.score);
-  const stamp = { good: 'PÜNKTLICH!', meh: 'KNAPP!', bad: 'ZU SPÄT!' }[kind];
-  const stars = [0, 1, 2].map(i => `<span class="${i < res.stars ? '' : 'off'}">⭐</span>`).join('');
+  const stamp = { good: 'Pünktlich!', meh: 'Knapp!', bad: 'Zu spät!' }[kind];
+  const stars = [0, 1, 2].map(i => `<i class="${i < res.stars ? '' : 'off'}">★</i>`).join('');
   const vs = challenge ? (() => {
     const diff = res.score - challenge.score;
-    const verdict = diff > 0 ? 'Duell gewonnen! 🏆' : diff < 0 ? `${esc(challenge.name || 'Gegner')} gewinnt.` : 'Unentschieden.';
-    return `<div class="card vs"><div class="row"><span>${esc(challenge.name || 'Gegner')}</span><b>${signed(challenge.score)} Min</b></div>
-      <div class="row"><span>Du</span><b>${signed(res.score)} Min</b></div><div class="verdict">${verdict}</div></div>`;
+    const verdict = diff > 0 ? 'gewonnen 🏆' : diff < 0 ? 'verloren' : 'unentschieden';
+    return `<div class="duel-line">⚔️ ${esc(challenge.name || 'Gegner')} ${signed(challenge.score)} · du ${signed(res.score)} → <b>${verdict}</b></div>`;
   })() : '';
   const n = nextUnlock(progress);
-  const unlocks = [...rec.unlocks.map(e => `🎉 ${esc(e.label)}`), rec.stufeUnlocked ? `🔥 Störungsstufe ${rec.stufeUnlocked} frei!` : '']
-    .filter(Boolean).map(t => `<div class="unlock">${t}</div>`).join('');
+  const unlocks = [...rec.unlocks.map(e => `🎉 ${esc(e.label)}`), rec.stufeUnlocked ? `🔥 Störungsstufe ${rec.stufeUnlocked} frei` : '']
+    .filter(Boolean).map(t => `<div class="sticker unlock">${t}</div>`).join('');
   const social = run.mode === 'daily' || run.mode === 'challenge';
   return `<section class="screen result ${kind}">
-    <div class="stamp">${stamp}</div>
-    <div class="score">${signed(res.score)}<small>${minutesWord(res.score)}</small></div>
-    <div class="stars">${stars}</div>
-    <p class="quote">„${esc(res.score >= 0 ? occ.ok : occ.late)}“</p>
-    <div class="card line">${esc(res.line)}</div>
-    ${vs}
-    <div class="km">+${res.km.toLocaleString('de-DE')} km${n ? ` · ${esc(shortLabel(n.entry.label))} bei ${n.entry.km.toLocaleString('de-DE')} km` : ''}
-      <div class="bar"><i style="width:${n ? (n.fraction * 100).toFixed(1) : 100}%"></i></div></div>
+    <div class="ticket">
+      <div class="ticket-head"><span>${esc(net.nodes[net.startId].city)} → ${esc(net.nodes[net.goalId].city)}</span><small>${run.mode === 'free' ? 'Freie Reise' : `Tagesreise #${run.day}`}</small></div>
+      <div class="stamp">${stamp}</div>
+      <div class="score">${signed(res.score)}</div>
+      <div class="score-word">${minutesWord(res.score)}</div>
+      <div class="stars">${stars}</div>
+      <div class="legs">${esc(res.line)}</div>
+      <p class="quote">„${esc(res.score >= 0 ? occ.ok : occ.late)}“</p>
+      ${vs}
+    </div>
+    <div class="progress">+${km(res.km)} km<span class="lvl-bar"><i style="width:${n ? (n.fraction * 100).toFixed(1) : 100}%"></i></span>${n ? `<small>${esc(shortLabel(n.entry.label))}</small>` : ''}</div>
     ${unlocks}
-    <div class="spacer"></div>
-    ${social ? '<button class="btn y" data-act="share">TEILEN</button><button class="btn" data-act="home">WEITER</button>'
-      : '<button class="btn y" data-act="free">NOCHMAL</button><button class="btn w" data-act="home">MENÜ</button>'}
+    <div class="dock">
+      ${social ? '<button class="cta" data-act="share"><span>Teilen</span></button><button class="link light" data-act="home">weiter</button>'
+        : '<button class="cta" data-act="free"><span>Nochmal</span></button><button class="link light" data-act="home">zum Start</button>'}
+    </div>
     ${sheetHtml || ''}
   </section>`;
 }

@@ -29,17 +29,17 @@ function fakeCanvas() {
   return { canvas: { getContext: () => ctx, getBoundingClientRect: () => ({ width: 360, height: 560 }), width: 0, height: 0 }, calls };
 }
 
-const ns = (o = {}) => ({ notice: null, eventResult: null, movedFrom: null, map: false, ...o });
+const ns = (o = {}) => ({ notice: null, eventResult: null, movedFrom: null, map: false, item: null, ...o });
 
 test('home, sheets and figuren render for new and veteran players', () => {
   const dailyRun = createRun({ seed: 9, mode: 'daily', day: 3, regionId: 'de' });
   for (const p of [newProgress(), { ...newProgress(), km: 99999, stufeMax: 5, daily: { 3: { score: 4, stars: 3, line: '🚄🚆' } }, name: 'Mika', character: 'rentner' }]) {
     const challenge = { day: 3, score: -2, name: 'Jo<b>', line: '🚄' };
     const plain = homeScreen({ progress: p, day: 3, dailyRun, challenge: null, soundOn: true, streak: 2 });
-    assert.ok(/TAGESREISE #3|TEILEN/.test(plain));
-    assert.ok(plain.includes('🔥 2 Tage'));
+    assert.ok(/Tagesreise #3|Teilen/.test(plain));
+    assert.ok(plain.includes('🔥 2'));
     const duel = homeScreen({ progress: p, day: 3, dailyRun, challenge, soundOn: false, streak: 0 });
-    assert.ok(duel.includes('DUELL ANNEHMEN'));
+    assert.ok(duel.includes('Duell annehmen'));
     assert.ok(!duel.includes('<b>Jo'), 'names are escaped');
     assert.ok(freeSheet({ progress: p, setup: { regionId: 'nord', stufe: 0 } }).includes('Freie Reise'));
     assert.ok(/Duell|Wie heißt du/.test(duelSheet({ progress: p, day: 3 })));
@@ -55,13 +55,16 @@ test('a whole journey renders every screen along the way, including all node kin
     while (!run.done) {
       const kind = run.net.nodes[run.at].kind;
       const html = stationScreen(run, ns());
-      assert.ok(html.includes('Welchen Zug'));
+      assert.ok(html.includes('Abfahrt'));
       assert.ok(stationScreen(run, ns({ map: true })).includes('Dein Netz'));
       if (kind === 'event') {
         assert.ok(html.includes(EVENTS[run.net.nodes[run.at].event].title));
-        assert.ok(stationScreen(run, ns({ eventResult: 'ok' })).includes('WEITER'));
+        assert.ok(stationScreen(run, ns({ eventResult: 'ok' })).includes('Weiter'));
       }
-      if (kind === 'kiosk') assert.ok(html.includes('Kiosk'));
+      if (kind === 'kiosk') {
+        assert.ok(html.includes('Kiosk'));
+        assert.ok(stationScreen(run, ns({ item: 'bahncard' })).includes('Kaufen'));
+      }
       const d = departures(run)[0];
       assert.ok(rideScreen(run, { emoji: '🚄', city: d.city }).includes('veh'));
       const [x, y] = nodePoint(run.net, run.at);
@@ -71,7 +74,7 @@ test('a whole journey renders every screen along the way, including all node kin
     const res = result(run);
     const rec = recordRun(newProgress(), { mode: 'daily', day: 1, stufe: 0, score: res.score, stars: res.stars, km: res.km, line: res.line });
     const html = resultScreen({ run: { ...run, mode: 'daily', day: 1 }, res, rec, challenge: { day: 1, score: 3, name: 'Mika', line: '🚄' }, progress: rec.progress });
-    assert.ok(/PÜNKTLICH!|KNAPP!|ZU SPÄT!/.test(html));
+    assert.ok(/Pünktlich!|Knapp!|Zu spät!/.test(html));
     assert.ok(html.includes('Mika'));
     assert.ok(mapSvg(run).includes('e-done'));
   }

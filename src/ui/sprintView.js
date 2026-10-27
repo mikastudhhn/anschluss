@@ -823,7 +823,7 @@ export function createSprintView(canvas, characterId) {
     text(spec.bus ? 'Haltestelle vor dem Bahnhof' : `Tafel: Gleis ${sp.gleis.tafel}${sp.gleis.good.tafel ? '' : ' (gestört!)'}`, 0, -22, '#5b6475', 'center', 'middle');
     inkBox(-62, -4, 124, 48, 14, YEL, 3, 4);
     font('400', 32, DISP); text(`${Math.round(spec.timeLimit / SEC_PER_MIN)} Min`, 0, 21, INK, 'center', 'middle');
-    font('900', 12); text('◀ tippen · tippen ▶', 0, 62, '#5b6475', 'center', 'middle');
+    font('900', 12); text('◀ wischen oder tippen ▶', 0, 62, '#5b6475', 'center', 'middle');
     ctx.restore();
   }
 
@@ -854,7 +854,7 @@ export function createSprintView(canvas, characterId) {
   function drawTutorial() {
     const sp = V.sp;
     if (!sp.spec.tutorial || sp.phase !== 'run') return;
-    if (sp.t < 2.6) bubble(180, PLAYER_Y - 120, '◀ Tippen zum Ausweichen ▶');
+    if (sp.t < 2.6) bubble(180, PLAYER_Y - 120, '◀ Wischen zum Ausweichen ▶');
     else if (V.chips.app && V.tutChip < 3.5) bubble(180, HUD_H + 58, 'Grün = trau dich. Rot = Vorsicht!');
     else if (sp.fork && !sp.fork.chosen && sp.fork.d0 - sp.s < 900) bubble(180, 330, 'Wähl dein Gleis: links oder rechts!');
   }

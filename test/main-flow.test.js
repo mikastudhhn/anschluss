@@ -64,7 +64,7 @@ const flush = () => new Promise(r => setTimeout(r, 0));
 
 test('home → daily → plan → sprints → result → share, end to end', async () => {
   assert.equal(app.screen, 'home');
-  assert.ok(els.ui.innerHTML.includes('TAGESREISE #'));
+  assert.ok(els.ui.innerHTML.includes('Tagesreise #'));
   click('daily');
   assert.equal(app.screen, 'plan');
   click('begin');
@@ -80,7 +80,7 @@ test('home → daily → plan → sprints → result → share, end to end', asy
     if (app.screen === 'ride') pump();
   }
   assert.equal(app.screen, 'result');
-  assert.match(els.ui.innerHTML, /PÜNKTLICH!|KNAPP!|ZU SPÄT!/);
+  assert.match(els.ui.innerHTML, /Pünktlich!|Knapp!|Zu spät!/);
   const p = JSON.parse(storage['anschluss.progress']);
   assert.ok(p.km > 0);
   assert.equal(Object.keys(p.daily).length, 1);
@@ -93,7 +93,7 @@ test('home → daily → plan → sprints → result → share, end to end', asy
   assert.ok(els.ui.innerHTML.includes('Kopiert!'));
   click('home');
   assert.equal(app.screen, 'home');
-  assert.ok(els.ui.innerHTML.includes('🔥 1 Tag'));
+  assert.ok(els.ui.innerHTML.includes('streak">🔥 1'));
   assert.ok(els.ui.innerHTML.includes('data-act="share-daily"'));
 });
 
