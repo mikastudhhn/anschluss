@@ -1,0 +1,12 @@
+{
+  "name": "Anschluss!",
+  "short_name": "Anschluss!",
+  "description": "Komm pünktlich an. Irgendwie.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#071330",
+  "theme_color": "#0a1f4f",
+  "lang": "de",
+  "icons": [{ "src": "assets/anschluss.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
