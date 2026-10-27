@@ -25,7 +25,7 @@ h1, h2, h3, p, ul { margin: 0; padding: 0; }
 .screen { min-height: 100%; display: flex; flex-direction: column; padding: var(--top) 14px var(--bottom); }
 
 /* ---------- shared pieces ---------- */
-.cta { position: relative; display: block; width: 100%; min-height: 74px; padding: 10px 70px 11px 20px; background: linear-gradient(#ffe45c, var(--yel2)); border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 7px 0 var(--ink); text-align: left; transition: transform 0.06s, box-shadow 0.06s; }
+.cta { position: relative; display: block; width: 100%; min-height: 74px; color: var(--ink); padding: 10px 70px 11px 20px; background: linear-gradient(#ffe45c, var(--yel2)); border: 4px solid var(--ink); border-radius: 22px; box-shadow: 0 7px 0 var(--ink); text-align: left; transition: transform 0.06s, box-shadow 0.06s; }
 .cta span { display: block; font-family: var(--disp); font-size: 31px; line-height: 1; }
 .cta small { display: block; margin-top: 3px; font-size: 13px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cta::after { content: "▶"; position: absolute; right: 12px; top: 50%; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%; background: var(--ink); color: var(--yel); display: grid; place-items: center; font-size: 17px; padding-left: 3px; }
@@ -62,8 +62,8 @@ h1, h2, h3, p, ul { margin: 0; padding: 0; }
 .lvl small { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
 .logo { margin-top: 22px; font-family: var(--disp); font-weight: 400; font-size: 64px; line-height: 0.9; text-align: center; color: var(--white); -webkit-text-stroke: 2.5px #0b2a8f; text-shadow: 0 6px 0 #0b2a8f, 0 11px 0 rgba(0, 0, 0, 0.16); transform: rotate(-5deg); }
 .hero { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 26px; }
-.hero canvas { width: 170px; height: 170px; margin-bottom: -38px; position: relative; z-index: 1; }
-.platform { width: 230px; height: 26px; border-radius: 50%; background: radial-gradient(ellipse, rgba(10, 20, 60, 0.35), transparent 70%); }
+.hero canvas { width: 220px; height: 220px; margin-bottom: -50px; position: relative; z-index: 1; }
+.platform { width: 260px; height: 30px; border-radius: 50%; background: radial-gradient(ellipse, rgba(10, 20, 60, 0.35), transparent 70%); }
 .hero .station-sign { margin-top: 18px; transform: rotate(-1.5deg); font-size: 24px; }
 .streak { position: absolute; top: 18%; right: 4%; font-family: var(--disp); font-size: 26px; color: var(--ink); border-radius: 50%; width: 72px; height: 72px; display: grid; place-items: center; padding: 0; transform: rotate(12deg); animation: bob 2.6s ease-in-out infinite; }
 .dock { display: flex; flex-direction: column; margin-top: auto; }
