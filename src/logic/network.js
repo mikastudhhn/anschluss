@@ -13,14 +13,15 @@ export function generateNetwork(seed, regionId) {
   const region = REGIONS[regionId];
   const rng = makeRng(hashOf(seed, regionId, 'net'));
   const pool = Object.keys(CITIES).filter(c => CITIES[c][1] >= region.minLat);
-  for (let tries = 0; tries < 500; tries++) {
-    const cities = pickCities(rng, pool, region);
+  // spacing rules loosen on later tries so generation always succeeds
+  for (let tries = 0; tries < 600; tries++) {
+    const cities = pickCities(rng, pool, region, tries < 200 ? 1 : tries < 400 ? 0.8 : 0.6);
     if (cities) return build(rng, cities, seed, regionId);
   }
   throw new Error(`no network for seed ${seed}`);
 }
 
-function pickCities(rng, pool, region) {
+function pickCities(rng, pool, region, spacing) {
   const start = rng.pick(pool);
   const goals = pool.filter(c => cityDist(start, c) >= region.minTrip);
   if (!goals.length) return null;
@@ -44,7 +45,7 @@ function pickCities(rng, pool, region) {
     const want = rng.int(2, 3), layer = [];
     for (const c of cands) {
       if (layer.length >= want) break;
-      if (used.every(u => cityDist(u, c) >= 0.38) && layer.every(o => cityDist(o, c) >= 0.5)) layer.push(c);
+      if (used.every(u => cityDist(u, c) >= 0.38 * spacing) && layer.every(o => cityDist(o, c) >= 0.5 * spacing)) layer.push(c);
     }
     if (layer.length < 2) return null;
     layer.sort((a, b) => geo(a).lat - geo(b).lat);

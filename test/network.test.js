@@ -74,3 +74,7 @@ test('the timetable has a planned arrival after the start and a buffer for the a
     assert.ok(net.buffer >= REGIONS.de.buffer[0] && net.buffer <= REGIONS.de.buffer[1]);
   }
 });
+
+test('generation never fails, also for unusual seeds', () => {
+  for (const region of ['nord', 'de']) for (let s = 0; s < 3000; s++) generateNetwork(s * 7919 + 13, region);
+});

@@ -69,3 +69,13 @@ test('recordRun does not mutate its input', () => {
   recordRun(p, run({ mode: 'daily', day: 1 }));
   assert.deepEqual(p, newProgress());
 });
+
+test('a repeated daily is practice: only kilometres count, no stats and no stufe unlock', () => {
+  const first = recordRun(newProgress(), run({ mode: 'daily', day: 4, score: -20, stars: 1, km: 100 })).progress;
+  const r = recordRun(first, run({ mode: 'daily', day: 4, score: 9, stars: 3, km: 100 }));
+  assert.equal(r.progress.km, 200);
+  assert.equal(r.progress.runs, 1);
+  assert.equal(r.progress.onTime, 0);
+  assert.equal(r.progress.bestScore, -20);
+  assert.equal(r.stufeUnlocked, null);
+});

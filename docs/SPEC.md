@@ -4,7 +4,7 @@ Ergebnis der Konzept-Runde vom 27.10.2026. Ziel: ein Spiel, das süchtig macht, 
 sich über Freischaltungen weiterentwickelt und bei dem man sich mit anderen vergleicht. Kein Ballast.
 
 ## Kern
-- **Ein Durchgang = eine Reise** von A nach B zu einem Termin (~6 Min Spielzeit, 4–6 Umstiege).
+- **Ein Durchgang = eine Reise** von A nach B zu einem Termin (~6 Min Spielzeit, 4 Umstiege im Norden, 5 in ganz Deutschland).
 - **Netz-Karte** wie in Slay the Spire: Ebenen mit 2–3 Bahnhöfen, ganzes Netz von Anfang an sichtbar.
   Bahnhofsarten: Bahnhof, Kiosk (Ausrüstung kaufen), Lounge (Zeit gegen Geld), Ereignis (Wahl mit Folgen).
 - **Anschlüsse** pro Bahnhof: ICB (schnell, teuer, wackelig, Takt 60) oder RE (langsam, billig, meist pünktlich, Takt 30).
@@ -14,6 +14,7 @@ sich über Freischaltungen weiterentwickelt und bei dem man sich mit anderen ver
   Pfandflaschen als Geldquelle, genau eine Gleis-Entscheidung. Tafel, App und Durchsage widersprechen sich;
   jede Quelle zeigt, ob man ihr trauen kann (Tafel gestört, App veraltet, Durchsage rauscht). Mindestens eine ist
   vertrauenswürdig. Zeitlimit = Umsteigezeit. Verpasst → nächster Zug im Takt.
+  Ausnahme Ersatzbus: fährt von der Haltestelle vor dem Bahnhof, kürzerer Weg, keine Gleisfrage.
 - **Termin** = Ankunft einer fehlerfreien Referenz-Reise (kennt die festgelegten Verspätungen) + kleiner Puffer.
   Wer gut plant und sauber läuft, ist pünktlich; ein verpasster Anschluss kostet meist die Pünktlichkeit.
 - **Geld** nur innerhalb des Durchgangs: Pfand + Bonus für saubere Sprints; ausgeben für Fahrkarten, Kiosk, Taxi.
@@ -31,7 +32,8 @@ Fahrgastrechte-Formular, Deutschlandticket. Jede mit Haken oder Preis.
 - **Störungsstufen 1–5**: pünktliche Ankunft auf Stufe k schaltet Stufe k+1 frei. Jede Stufe eine neue Gemeinheit.
 
 ## Vergleichen
-- **Tagesreise**: gleicher Seed für alle, Pendler, Stufe 0, keine Vorteile. Nur der erste Versuch zählt.
+- **Tagesreise**: gleicher Seed für alle, Pendler, Stufe 0, keine Vorteile. Nur der erste Versuch zählt;
+  Wiederholungen sind Training und bringen nur Kilometer (keine Statistik, keine Stufe).
 - **Teilen** als Text (Emoji pro Etappe, 🏃 = Anschluss verpasst) + **Herausforderungs-Link** mit Spitzname und Ergebnis.
   Wer den Link öffnet, spielt dieselbe Tagesreise und sieht den Vergleich.
 

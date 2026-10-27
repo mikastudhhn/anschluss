@@ -24,8 +24,8 @@ export const CITIES = {
 };
 
 export const REGIONS = {
-  nord: { name: 'Norddeutschland', layers: 3, minTrip: 2.4, minLat: 51.25, buffer: [0, 5] },
-  de: { name: 'Ganz Deutschland', layers: 4, minTrip: 4.2, minLat: -90, buffer: [0, 6] },
+  nord: { name: 'Norddeutschland', layers: 4, minTrip: 2.4, minLat: 51.25, buffer: [0, 5] },
+  de: { name: 'Ganz Deutschland', layers: 5, minTrip: 4.2, minLat: -90, buffer: [0, 6] },
 };
 
 export const OUTLINE = [[8.7, 54.9], [9.9, 54.8], [10.9, 54.35], [11.0, 54.0], [12.3, 54.45], [13.4, 54.65], [14.2, 53.9],

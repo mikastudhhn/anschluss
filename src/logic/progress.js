@@ -35,16 +35,14 @@ export function recordRun(progress, r) {
   const p = { ...progress, daily: { ...progress.daily } };
   const before = new Set(LADDER.filter(e => p.km >= e.km));
   p.km += r.km;
+  const unlocks = LADDER.filter(e => p.km >= e.km && !before.has(e));
+  // A repeated daily is practice with known delays: it only earns kilometres.
+  if (r.mode === 'daily' && p.daily[r.day]) return { progress: p, unlocks, stufeUnlocked: null, dailyCounted: false };
   p.runs++;
   if (r.score >= 0) p.onTime++;
   if (p.bestScore === null || r.score > p.bestScore) p.bestScore = r.score;
-  let dailyCounted = false;
-  if (r.mode === 'daily' && !p.daily[r.day]) {
-    p.daily[r.day] = { score: r.score, stars: r.stars, line: r.line };
-    dailyCounted = true;
-  }
+  if (r.mode === 'daily') p.daily[r.day] = { score: r.score, stars: r.stars, line: r.line };
   let stufeUnlocked = null;
   if (r.score >= 0 && r.stufe === p.stufeMax && p.stufeMax < MAX_STUFE) stufeUnlocked = ++p.stufeMax;
-  const unlocks = LADDER.filter(e => p.km >= e.km && !before.has(e));
-  return { progress: p, unlocks, stufeUnlocked, dailyCounted };
+  return { progress: p, unlocks, stufeUnlocked, dailyCounted: r.mode === 'daily' };
 }
